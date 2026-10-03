@@ -73,3 +73,17 @@ export function isSameDay(a: Date, b: Date): boolean {
 export function todayKey(): string {
   return toDateKey(new Date());
 }
+
+/** Monday-start weekday index: 0=mån … 6=sön */
+export function mondayWeekdayIndex(date: Date = new Date()): number {
+  return (date.getDay() + 6) % 7;
+}
+
+export const WEEKDAY_LABELS = DAY_NAMES;
+
+export function formatClock(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(safe / 60);
+  const seconds = safe % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}

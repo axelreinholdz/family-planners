@@ -138,7 +138,7 @@ export function TodoView() {
                 Mer kommer snart
               </p>
               <p className="mt-1 text-sm text-[var(--ink-faint)]">
-                Plats för inköpslista, matsedel och annat.
+                Plats för inköpslista och annat.
               </p>
             </div>
           </div>

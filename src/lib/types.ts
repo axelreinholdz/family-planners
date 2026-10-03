@@ -42,8 +42,32 @@ export interface Todo {
   dueDate?: string; // YYYY-MM-DD
 }
 
+export interface ScreenTimeSettings {
+  personId: string;
+  dailyMinutes: number;
+  enabled: boolean;
+}
+
+export interface ScreenTimeDay {
+  /** Composite key: `${personId}:${date}` */
+  id: string;
+  personId: string;
+  date: string; // YYYY-MM-DD
+  allowanceMinutes: number;
+  usedSeconds: number;
+  activeStartedAt?: string; // ISO if a session is running
+}
+
+export interface DinnerPlan {
+  weekday: number; // 0=mån … 6=sön
+  title: string;
+}
+
 export interface FamilyData {
   people: Person[];
   events: Event[];
   todos: Todo[];
+  dinners: DinnerPlan[];
+  screenTimeSettings: ScreenTimeSettings[];
+  screenTimeDays: ScreenTimeDay[];
 }

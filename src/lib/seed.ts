@@ -1,5 +1,14 @@
 import { addDays, startOfWeek, toDateKey } from "./dates";
-import type { Event, Person, Todo } from "./types";
+import type {
+  DinnerPlan,
+  Event,
+  Person,
+  ScreenTimeSettings,
+  Todo,
+} from "./types";
+
+export const EBBE_ID = "child-ebbe";
+export const LILLE_ID = "child-lille";
 
 export const SEED_PEOPLE: Person[] = [
   {
@@ -19,20 +28,38 @@ export const SEED_PEOPLE: Person[] = [
     sortOrder: 1,
   },
   {
-    id: "child-store",
-    name: "Storebror",
+    id: EBBE_ID,
+    name: "Ebbe",
     role: "child",
     color: "#2A9D8F",
     avatar: "👦",
     sortOrder: 2,
   },
   {
-    id: "child-lille",
+    id: LILLE_ID,
     name: "Lillebror",
     role: "child",
     color: "#E9C46A",
     avatar: "🧒",
     sortOrder: 3,
+  },
+];
+
+export const SEED_DINNERS: DinnerPlan[] = [
+  { weekday: 0, title: "Fisk" },
+  { weekday: 1, title: "Pasta" },
+  { weekday: 2, title: "Gryta" },
+  { weekday: 3, title: "Tacos" },
+  { weekday: 4, title: "Pizza" },
+  { weekday: 5, title: "Utemat" },
+  { weekday: 6, title: "Helgmiddag" },
+];
+
+export const SEED_SCREEN_TIME: ScreenTimeSettings[] = [
+  {
+    personId: EBBE_ID,
+    dailyMinutes: 45,
+    enabled: true,
   },
 ];
 
@@ -47,48 +74,48 @@ export function buildSeedEvents(now = new Date()): Event[] {
 
   return [
     {
-      id: "ev-store-mon",
-      personId: "child-store",
+      id: "ev-ebbe-mon",
+      personId: EBBE_ID,
       date: mon,
       title: "Förskola",
       iconKey: "preschool",
       allDay: true,
     },
     {
-      id: "ev-store-tue",
-      personId: "child-store",
+      id: "ev-ebbe-tue",
+      personId: EBBE_ID,
       date: tue,
       title: "Förskola",
       iconKey: "preschool",
       allDay: true,
     },
     {
-      id: "ev-store-wed",
-      personId: "child-store",
+      id: "ev-ebbe-wed",
+      personId: EBBE_ID,
       date: wed,
       title: "Förskola",
       iconKey: "preschool",
       allDay: true,
     },
     {
-      id: "ev-store-thu",
-      personId: "child-store",
+      id: "ev-ebbe-thu",
+      personId: EBBE_ID,
       date: thu,
       title: "Förskola",
       iconKey: "preschool",
       allDay: true,
     },
     {
-      id: "ev-store-fri",
-      personId: "child-store",
+      id: "ev-ebbe-fri",
+      personId: EBBE_ID,
       date: fri,
       title: "Förskola",
       iconKey: "preschool",
       allDay: true,
     },
     {
-      id: "ev-store-sport",
-      personId: "child-store",
+      id: "ev-ebbe-sport",
+      personId: EBBE_ID,
       date: tue,
       title: "Fotboll",
       iconKey: "sport",
@@ -98,7 +125,7 @@ export function buildSeedEvents(now = new Date()): Event[] {
     },
     {
       id: "ev-lille-mon",
-      personId: "child-lille",
+      personId: LILLE_ID,
       date: mon,
       title: "Förskola",
       iconKey: "preschool",
@@ -106,7 +133,7 @@ export function buildSeedEvents(now = new Date()): Event[] {
     },
     {
       id: "ev-lille-tue",
-      personId: "child-lille",
+      personId: LILLE_ID,
       date: tue,
       title: "Förskola",
       iconKey: "preschool",
@@ -114,7 +141,7 @@ export function buildSeedEvents(now = new Date()): Event[] {
     },
     {
       id: "ev-lille-wed",
-      personId: "child-lille",
+      personId: LILLE_ID,
       date: wed,
       title: "Hemma",
       iconKey: "home",
@@ -122,7 +149,7 @@ export function buildSeedEvents(now = new Date()): Event[] {
     },
     {
       id: "ev-lille-thu",
-      personId: "child-lille",
+      personId: LILLE_ID,
       date: thu,
       title: "Förskola",
       iconKey: "preschool",
@@ -130,7 +157,7 @@ export function buildSeedEvents(now = new Date()): Event[] {
     },
     {
       id: "ev-lille-fri",
-      personId: "child-lille",
+      personId: LILLE_ID,
       date: fri,
       title: "Förskola",
       iconKey: "preschool",
@@ -138,7 +165,7 @@ export function buildSeedEvents(now = new Date()): Event[] {
     },
     {
       id: "ev-lille-park",
-      personId: "child-lille",
+      personId: LILLE_ID,
       date: sat,
       title: "Lekpark",
       iconKey: "outdoors",
@@ -185,4 +212,8 @@ export function buildSeedTodos(): Todo[] {
       createdAt: now,
     },
   ];
+}
+
+export function screenTimeDayId(personId: string, date: string): string {
+  return `${personId}:${date}`;
 }

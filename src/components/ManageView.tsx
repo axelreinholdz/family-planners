@@ -2,6 +2,8 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { ActivityIcon } from "@/components/ActivityIcon";
+import { ManageDinners } from "@/components/ManageDinners";
+import { ManageScreenTime } from "@/components/ManageScreenTime";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import {
   addDays,
@@ -18,7 +20,12 @@ interface ManageViewProps {
   onBack: () => void;
 }
 
-type Tab = "activities" | "people" | "settings";
+type Tab =
+  | "activities"
+  | "dinners"
+  | "screentime"
+  | "people"
+  | "settings";
 
 export function ManageView({ onBack }: ManageViewProps) {
   const {
@@ -137,10 +144,12 @@ export function ManageView({ onBack }: ManageViewProps) {
         <div className="w-24" />
       </header>
 
-      <nav className="flex gap-2 rounded-2xl bg-white/70 p-1 shadow-sm ring-1 ring-black/5">
+      <nav className="flex flex-wrap gap-2 rounded-2xl bg-white/70 p-1 shadow-sm ring-1 ring-black/5">
         {(
           [
             ["activities", "Aktiviteter"],
+            ["dinners", "Middagsmeny"],
+            ["screentime", "Skärmtid"],
             ["people", "Personer"],
             ["settings", "Inställningar"],
           ] as const
@@ -149,7 +158,7 @@ export function ManageView({ onBack }: ManageViewProps) {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`tap-target flex-1 rounded-xl px-3 py-2 text-sm font-bold ${
+            className={`tap-target min-w-[6.5rem] flex-1 rounded-xl px-3 py-2 text-sm font-bold ${
               tab === id
                 ? "bg-[var(--accent)] text-white"
                 : "text-[var(--ink-muted)]"
@@ -352,6 +361,10 @@ export function ManageView({ onBack }: ManageViewProps) {
           </div>
         </div>
       ) : null}
+
+      {tab === "dinners" ? <ManageDinners /> : null}
+
+      {tab === "screentime" ? <ManageScreenTime /> : null}
 
       {tab === "people" ? (
         <div className="grid gap-3 overflow-y-auto sm:grid-cols-2">

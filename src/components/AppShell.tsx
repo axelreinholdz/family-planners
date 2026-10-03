@@ -1,11 +1,14 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { IdagView } from "@/components/IdagView";
 import { ManageView } from "@/components/ManageView";
 import { SwipePager } from "@/components/SwipePager";
 import { TodoView } from "@/components/TodoView";
 import { WeekView } from "@/components/WeekView";
 import { FamilyStoreProvider } from "@/hooks/useFamilyStore";
+
+const PAGE_LABELS = ["Vecka", "Idag", "Att göra"] as const;
 
 function KitchenApp() {
   const [pageIndex, setPageIndex] = useState(0);
@@ -53,7 +56,7 @@ function KitchenApp() {
 
         <div className="flex items-center gap-2">
           <span className="hidden rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-[var(--ink-muted)] ring-1 ring-black/5 sm:inline">
-            {pageIndex === 0 ? "Vecka" : "Att göra"}
+            {PAGE_LABELS[pageIndex] ?? "Vecka"}
           </span>
           <button
             type="button"
@@ -72,6 +75,7 @@ function KitchenApp() {
         onIndexChange={setPageIndex}
         pages={[
           { id: "week", label: "Veckans schema", content: <WeekView /> },
+          { id: "idag", label: "Idag", content: <IdagView /> },
           { id: "todos", label: "Att göra", content: <TodoView /> },
         ]}
       />

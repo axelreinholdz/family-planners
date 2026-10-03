@@ -5,8 +5,9 @@ Local-first weekly family planner for a kitchen iPad. Swedish UI.
 ## Features
 
 - **Vecka** — everyone on one week grid; large activity icons for the kids
-- **Att göra** — shared checklist (swipe from the week view)
-- **Hantera** — parent screen to add/edit activities and people (gear, or long-press the title)
+- **Idag** — Ebbe’s skärmtid (daily allowance) + today’s dinner + weekly dinner menu
+- **Att göra** — shared checklist
+- **Hantera** — parent screen for activities, middagsmeny, skärmtid, people (gear, or long-press the title)
 
 Data stays in IndexedDB on the device. No login.
 
@@ -20,9 +21,14 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Production (Vercel)
+
+- App: https://family-planners.vercel.app  
+- Project is linked to this GitHub repo — pushes to `main` deploy automatically.
+
 ## Install on iPad
 
-1. Deploy or open the app in Safari on the kitchen iPad
+1. Open https://family-planners.vercel.app in Safari on the kitchen iPad
 2. Share → **Add to Home Screen**
 3. Open from the home screen for fullscreen / offline use
 
