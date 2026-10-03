@@ -29,9 +29,10 @@ export function AppIcon({
   className = "",
 }: AppIconProps) {
   const fromKey = iconKey ? getIconByKey(iconKey) : undefined;
-  const fromEmoji = !fromKey && emoji ? getIconByEmoji(emoji) : undefined;
-  const def = fromKey ?? fromEmoji;
-  const glyph = fromKey?.emoji ?? emoji ?? def?.emoji ?? "⭐";
+  const fromEmoji = emoji ? getIconByEmoji(emoji) : undefined;
+  const def = fromEmoji ?? fromKey;
+  // Custom/override emoji wins over library key (needed for "other" + own emoji).
+  const glyph = emoji ?? fromKey?.emoji ?? "⭐";
   const label = title ?? def?.label ?? glyph;
 
   return (

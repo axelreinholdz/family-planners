@@ -87,6 +87,7 @@ function PersonRow({
                 >
                   <ActivityIcon
                     iconKey={event.iconKey}
+                    emoji={event.emoji}
                     size={emphasize ? "lg" : "sm"}
                     showLabel={emphasize || person.role === "child"}
                     title={event.title}

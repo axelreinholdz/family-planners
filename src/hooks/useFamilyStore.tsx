@@ -68,6 +68,7 @@ interface FamilyStoreValue {
     date: string;
     title: string;
     iconKey: IconKey;
+    emoji?: string;
     startTime?: string;
     endTime?: string;
     allDay: boolean;
@@ -183,6 +184,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       date: string;
       title: string;
       iconKey: IconKey;
+      emoji?: string;
       startTime?: string;
       endTime?: string;
       allDay: boolean;

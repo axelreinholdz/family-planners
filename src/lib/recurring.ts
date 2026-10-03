@@ -50,6 +50,7 @@ export function eventsFromTemplates(
         date,
         title: template.title,
         iconKey: template.iconKey,
+        emoji: template.emoji,
         startTime: template.allDay ? undefined : template.startTime,
         endTime: template.allDay ? undefined : template.endTime,
         allDay: template.allDay,

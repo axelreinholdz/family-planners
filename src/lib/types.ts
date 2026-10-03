@@ -1,18 +1,7 @@
 export type PersonRole = "parent" | "child";
 
-export type IconKey =
-  | "preschool"
-  | "home"
-  | "outdoors"
-  | "sport"
-  | "friend"
-  | "travel"
-  | "doctor"
-  | "food"
-  | "sleep"
-  | "play"
-  | "music"
-  | "other";
+/** Key into APP_ICONS; use "other" with `emoji` for custom icons. */
+export type IconKey = string;
 
 export interface Person {
   id: string;
@@ -29,6 +18,8 @@ export interface Event {
   date: string; // YYYY-MM-DD
   title: string;
   iconKey: IconKey;
+  /** Display emoji; when set, overrides the library icon for this event. */
+  emoji?: string;
   startTime?: string; // HH:mm
   endTime?: string;
   allDay: boolean;
@@ -63,6 +54,8 @@ export interface RecurringTemplate {
   personId: string;
   title: string;
   iconKey: IconKey;
+  /** Display emoji; when set, overrides the library icon. */
+  emoji?: string;
   /** Monday-start weekdays 0–6 */
   weekdays: number[];
   startTime?: string;

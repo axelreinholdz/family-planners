@@ -8,7 +8,7 @@ import {
   todayKey,
   WEEKDAY_LABELS,
 } from "@/lib/dates";
-import { getActivityIcon, getIconEmoji } from "@/lib/icons";
+import { getIconEmoji, resolveActivityEmoji } from "@/lib/icons";
 import { nextEventsForPerson } from "@/lib/nextEvents";
 import {
   remainingSeconds,
@@ -271,7 +271,7 @@ export function IdagView() {
             {current ? (
               <div className="flex items-center gap-3 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 ring-1 ring-[var(--accent)]/30">
                 <span className="text-4xl" aria-hidden>
-                  {getActivityIcon(current.iconKey).emoji}
+                  {resolveActivityEmoji(current.iconKey, current.emoji)}
                 </span>
                 <div className="min-w-0">
                   <p className="font-display text-xl font-bold text-[var(--ink)]">
@@ -300,7 +300,7 @@ export function IdagView() {
                     className="flex items-center gap-3 rounded-2xl bg-[var(--surface-soft)] px-3 py-2"
                   >
                     <span className="text-xl" aria-hidden>
-                      {getActivityIcon(event.iconKey).emoji}
+                      {resolveActivityEmoji(event.iconKey, event.emoji)}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">
                       {event.title}

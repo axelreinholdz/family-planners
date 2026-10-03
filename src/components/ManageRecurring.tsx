@@ -5,7 +5,11 @@ import { IconPicker } from "@/components/IconPicker";
 import { MicButton } from "@/components/MicButton";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { todayKey, WEEKDAY_LABELS } from "@/lib/dates";
-import { ACTIVITY_ICONS, getActivityIcon } from "@/lib/icons";
+import {
+  ACTIVITY_ICONS,
+  getIconEmoji,
+  resolveActivityEmoji,
+} from "@/lib/icons";
 import type { IconKey, RecurringTemplate } from "@/lib/types";
 
 function formatDateRange(startDate?: string, endDate?: string): string {
@@ -29,6 +33,7 @@ export function ManageRecurring() {
   const [personId, setPersonId] = useState(children[0]?.id ?? "");
   const [title, setTitle] = useState("Förskola");
   const [iconKey, setIconKey] = useState<IconKey>("preschool");
+  const [emoji, setEmoji] = useState(() => getIconEmoji("preschool"));
   const [weekdays, setWeekdays] = useState<number[]>([0, 1, 2, 3, 4]);
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState("16:00");
@@ -47,6 +52,7 @@ export function ManageRecurring() {
     setPersonId(children[0]?.id ?? "");
     setTitle("Förskola");
     setIconKey("preschool");
+    setEmoji(getIconEmoji("preschool"));
     setWeekdays([0, 1, 2, 3, 4]);
     setAllDay(true);
     setStartTime("16:00");
@@ -60,6 +66,7 @@ export function ManageRecurring() {
     setPersonId(template.personId);
     setTitle(template.title);
     setIconKey(template.iconKey);
+    setEmoji(resolveActivityEmoji(template.iconKey, template.emoji));
     setWeekdays([...template.weekdays]);
     setAllDay(template.allDay);
     setStartTime(template.startTime ?? "16:00");
@@ -83,6 +90,7 @@ export function ManageRecurring() {
       personId: selectedPersonId,
       title: title.trim(),
       iconKey,
+      emoji,
       weekdays: [...weekdays].sort(),
       allDay,
       startTime: allDay ? undefined : startTime,
@@ -146,11 +154,16 @@ export function ManageRecurring() {
           </legend>
           <IconPicker
             category="activity"
-            value={getActivityIcon(iconKey).emoji}
+            value={emoji}
             onChange={(icon) => {
               setIconKey(icon.key as IconKey);
-              if (!title || ACTIVITY_ICONS.some((i) => i.label === title)) {
-                setTitle(icon.label);
+              setEmoji(icon.emoji);
+              if (
+                !title ||
+                ACTIVITY_ICONS.some((i) => i.label === title) ||
+                title === "Egen"
+              ) {
+                if (icon.label !== "Egen") setTitle(icon.label);
               }
             }}
           />
@@ -285,7 +298,10 @@ export function ManageRecurring() {
                       .map((d) => WEEKDAY_LABELS[d])
                       .join(", ")
                   : "inga dagar";
-              const icon = getActivityIcon(template.iconKey).emoji;
+              const icon = resolveActivityEmoji(
+                template.iconKey,
+                template.emoji,
+              );
               const range = formatDateRange(
                 template.startDate,
                 template.endDate,

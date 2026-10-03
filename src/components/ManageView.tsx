@@ -18,7 +18,7 @@ import {
   weekDays,
   weekRangeLabel,
 } from "@/lib/dates";
-import { ACTIVITY_ICONS, getActivityIcon } from "@/lib/icons";
+import { ACTIVITY_ICONS, getIconEmoji, resolveActivityEmoji } from "@/lib/icons";
 import {
   getCachedMembership,
   isCloudMode,
@@ -67,6 +67,7 @@ export function ManageView({ onBack }: ManageViewProps) {
   const [date, setDate] = useState(toDateKey(new Date()));
   const [title, setTitle] = useState("");
   const [iconKey, setIconKey] = useState<IconKey>("preschool");
+  const [emoji, setEmoji] = useState(() => getIconEmoji("preschool"));
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState("16:00");
   const [endTime, setEndTime] = useState("17:00");
@@ -96,6 +97,7 @@ export function ManageView({ onBack }: ManageViewProps) {
     setDate(toDateKey(new Date()));
     setTitle("");
     setIconKey("preschool");
+    setEmoji(getIconEmoji("preschool"));
     setAllDay(true);
     setStartTime("16:00");
     setEndTime("17:00");
@@ -107,6 +109,7 @@ export function ManageView({ onBack }: ManageViewProps) {
     setDate(event.date);
     setTitle(event.title);
     setIconKey(event.iconKey);
+    setEmoji(resolveActivityEmoji(event.iconKey, event.emoji));
     setAllDay(event.allDay);
     setStartTime(event.startTime ?? "16:00");
     setEndTime(event.endTime ?? "17:00");
@@ -122,6 +125,7 @@ export function ManageView({ onBack }: ManageViewProps) {
       date,
       title: title.trim(),
       iconKey,
+      emoji,
       allDay,
       startTime: allDay ? undefined : startTime,
       endTime: allDay ? undefined : endTime,
@@ -250,11 +254,16 @@ export function ManageView({ onBack }: ManageViewProps) {
               </legend>
               <IconPicker
                 category="activity"
-                value={getActivityIcon(iconKey).emoji}
+                value={emoji}
                 onChange={(icon) => {
                   setIconKey(icon.key as IconKey);
-                  if (!title || ACTIVITY_ICONS.some((i) => i.label === title)) {
-                    setTitle(icon.label);
+                  setEmoji(icon.emoji);
+                  if (
+                    !title ||
+                    ACTIVITY_ICONS.some((i) => i.label === title) ||
+                    title === "Egen"
+                  ) {
+                    if (icon.label !== "Egen") setTitle(icon.label);
                   }
                 }}
               />
@@ -347,7 +356,11 @@ export function ManageView({ onBack }: ManageViewProps) {
                       key={event.id}
                       className="flex items-center gap-3 rounded-2xl bg-[var(--surface-soft)] px-3 py-2"
                     >
-                      <ActivityIcon iconKey={event.iconKey} size="md" />
+                      <ActivityIcon
+                        iconKey={event.iconKey}
+                        emoji={event.emoji}
+                        size="md"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-bold text-[var(--ink)]">
                           {event.title}
