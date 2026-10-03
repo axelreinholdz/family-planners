@@ -4,6 +4,7 @@ import {
   applySpanForTemplate,
   eventsFromTemplates,
   eventsFromTemplatesForWeeks,
+  reconcileTemplateEvents,
   weekAnchorsBetween,
 } from "./recurring";
 import {
@@ -239,16 +240,32 @@ export async function applyTemplatesBetween(fromKey: string, toKey: string) {
   await persistCreatedEvents(created);
 }
 
-/** Materialize one template across its start/end date span. */
+/** Sync linked events from a template, then materialize missing dates in span. */
 export async function applyTemplateSpan(template: RecurringTemplate) {
+  const db = await getDb();
+  const events = await db.getAll("events");
+  const { updated, deleteIds } = reconcileTemplateEvents(template, events);
+
+  if (updated.length > 0 || deleteIds.length > 0) {
+    const tx = db.transaction("events", "readwrite");
+    await Promise.all([
+      ...updated.map((event) => tx.store.put(event)),
+      ...deleteIds.map((id) => tx.store.delete(id)),
+      tx.done,
+    ]);
+  }
+
+  const remaining = events
+    .filter((event) => !deleteIds.includes(event.id))
+    .map((event) => updated.find((row) => row.id === event.id) ?? event);
+
   const { fromKey, toKey } = applySpanForTemplate(template);
   const anchors = weekAnchorsBetween(fromKey, toKey);
-  if (anchors.length === 0) return;
-  const db = await getDb();
-  const [events] = await Promise.all([db.getAll("events")]);
+  if (anchors.length === 0 || !template.enabled) return;
+
   const created = eventsFromTemplatesForWeeks(
     [template],
-    events,
+    remaining,
     anchors,
     newId,
   );

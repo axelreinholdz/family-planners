@@ -5,6 +5,7 @@ import {
   applySpanForTemplate,
   eventsFromTemplates,
   eventsFromTemplatesForWeeks,
+  reconcileTemplateEvents,
   weekAnchorsBetween,
 } from "@/lib/recurring";
 import { todayKey } from "@/lib/dates";
@@ -272,8 +273,23 @@ export async function cloudApplyTemplatesForWeek(weekAnchor = new Date()) {
 
 export async function cloudApplyTemplateSpan(template: RecurringTemplate) {
   await update((data) => {
+    const { updated, deleteIds } = reconcileTemplateEvents(
+      template,
+      data.events,
+    );
+    if (deleteIds.length > 0) {
+      const remove = new Set(deleteIds);
+      data.events = data.events.filter((event) => !remove.has(event.id));
+    }
+    if (updated.length > 0) {
+      const byId = new Map(updated.map((event) => [event.id, event]));
+      data.events = data.events.map((event) => byId.get(event.id) ?? event);
+    }
+
     const { fromKey, toKey } = applySpanForTemplate(template);
     const anchors = weekAnchorsBetween(fromKey, toKey);
+    if (anchors.length === 0 || !template.enabled) return;
+
     const created = eventsFromTemplatesForWeeks(
       [template],
       data.events,

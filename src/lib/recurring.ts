@@ -1,5 +1,6 @@
 import {
   addDays,
+  mondayWeekdayIndex,
   parseDateKey,
   startOfWeek,
   toDateKey,
@@ -20,6 +21,74 @@ function isWithinTemplateRange(
   return true;
 }
 
+/** Shared activity fields copied from a recurring template. */
+export function eventDetailsFromTemplate(
+  template: RecurringTemplate,
+): Pick<
+  Event,
+  "personId" | "title" | "iconKey" | "emoji" | "startTime" | "endTime" | "allDay"
+> {
+  return {
+    personId: template.personId,
+    title: template.title,
+    iconKey: template.iconKey,
+    emoji: template.emoji,
+    startTime: template.allDay ? undefined : template.startTime,
+    endTime: template.allDay ? undefined : template.endTime,
+    allDay: template.allDay,
+  };
+}
+
+function eventMatchesTemplateSchedule(
+  event: Event,
+  template: RecurringTemplate,
+): boolean {
+  if (!isWithinTemplateRange(event.date, template)) return false;
+  const weekday = mondayWeekdayIndex(parseDateKey(event.date));
+  return template.weekdays.includes(weekday);
+}
+
+function eventDetailsDiffer(
+  event: Event,
+  details: ReturnType<typeof eventDetailsFromTemplate>,
+): boolean {
+  return (
+    event.personId !== details.personId ||
+    event.title !== details.title ||
+    event.iconKey !== details.iconKey ||
+    (event.emoji ?? undefined) !== (details.emoji ?? undefined) ||
+    (event.startTime ?? undefined) !== (details.startTime ?? undefined) ||
+    (event.endTime ?? undefined) !== (details.endTime ?? undefined) ||
+    event.allDay !== details.allDay
+  );
+}
+
+/**
+ * Push template edits onto existing linked events.
+ * Removes events that no longer fall on the template’s days/date range.
+ */
+export function reconcileTemplateEvents(
+  template: RecurringTemplate,
+  events: Event[],
+): { updated: Event[]; deleteIds: string[] } {
+  const details = eventDetailsFromTemplate(template);
+  const updated: Event[] = [];
+  const deleteIds: string[] = [];
+
+  for (const event of events) {
+    if (event.templateId !== template.id) continue;
+    if (!eventMatchesTemplateSchedule(event, template)) {
+      deleteIds.push(event.id);
+      continue;
+    }
+    if (eventDetailsDiffer(event, details)) {
+      updated.push({ ...event, ...details });
+    }
+  }
+
+  return { updated, deleteIds };
+}
+
 export function eventsFromTemplates(
   templates: RecurringTemplate[],
   existing: Event[],
@@ -31,6 +100,7 @@ export function eventsFromTemplates(
 
   for (const template of templates) {
     if (!template.enabled) continue;
+    const details = eventDetailsFromTemplate(template);
     for (const weekday of template.weekdays) {
       const date = toDateKey(addDays(weekStart, weekday));
       if (!isWithinTemplateRange(date, template)) continue;
@@ -46,14 +116,8 @@ export function eventsFromTemplates(
 
       created.push({
         id: newId("ev"),
-        personId: template.personId,
         date,
-        title: template.title,
-        iconKey: template.iconKey,
-        emoji: template.emoji,
-        startTime: template.allDay ? undefined : template.startTime,
-        endTime: template.allDay ? undefined : template.endTime,
-        allDay: template.allDay,
+        ...details,
         templateId: template.id,
       });
     }
