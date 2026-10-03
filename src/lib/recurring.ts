@@ -1,6 +1,15 @@
 import { addDays, startOfWeek, toDateKey } from "./dates";
 import type { Event, RecurringTemplate } from "./types";
 
+function isWithinTemplateRange(
+  date: string,
+  template: RecurringTemplate,
+): boolean {
+  if (template.startDate && date < template.startDate) return false;
+  if (template.endDate && date > template.endDate) return false;
+  return true;
+}
+
 export function eventsFromTemplates(
   templates: RecurringTemplate[],
   existing: Event[],
@@ -14,6 +23,7 @@ export function eventsFromTemplates(
     if (!template.enabled) continue;
     for (const weekday of template.weekdays) {
       const date = toDateKey(addDays(weekStart, weekday));
+      if (!isWithinTemplateRange(date, template)) continue;
       const already = existing.some(
         (event) =>
           event.templateId === template.id && event.date === date,

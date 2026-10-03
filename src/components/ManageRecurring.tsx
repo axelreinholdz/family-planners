@@ -3,9 +3,16 @@
 import { useState, type FormEvent } from "react";
 import { MicButton } from "@/components/MicButton";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
-import { WEEKDAY_LABELS } from "@/lib/dates";
+import { todayKey, WEEKDAY_LABELS } from "@/lib/dates";
 import { ACTIVITY_ICONS } from "@/lib/icons";
 import type { IconKey, RecurringTemplate } from "@/lib/types";
+
+function formatDateRange(startDate?: string, endDate?: string): string {
+  if (!startDate && !endDate) return "";
+  if (startDate && endDate) return `${startDate} – ${endDate}`;
+  if (startDate) return `från ${startDate}`;
+  return `till ${endDate}`;
+}
 
 export function ManageRecurring() {
   const {
@@ -25,6 +32,8 @@ export function ManageRecurring() {
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState("16:00");
   const [endTime, setEndTime] = useState("17:00");
+  const [startDate, setStartDate] = useState(() => todayKey());
+  const [endDate, setEndDate] = useState("");
   const [editing, setEditing] = useState<RecurringTemplate | null>(null);
 
   const selectedPersonId =
@@ -41,6 +50,8 @@ export function ManageRecurring() {
     setAllDay(true);
     setStartTime("16:00");
     setEndTime("17:00");
+    setStartDate(todayKey());
+    setEndDate("");
   };
 
   const startEdit = (template: RecurringTemplate) => {
@@ -52,6 +63,8 @@ export function ManageRecurring() {
     setAllDay(template.allDay);
     setStartTime(template.startTime ?? "16:00");
     setEndTime(template.endTime ?? "17:00");
+    setStartDate(template.startDate ?? todayKey());
+    setEndDate(template.endDate ?? "");
   };
 
   const toggleDay = (day: number) => {
@@ -63,6 +76,8 @@ export function ManageRecurring() {
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!selectedPersonId || !title.trim() || weekdays.length === 0) return;
+    if (!startDate) return;
+    if (endDate && endDate < startDate) return;
     const payload = {
       personId: selectedPersonId,
       title: title.trim(),
@@ -71,6 +86,8 @@ export function ManageRecurring() {
       allDay,
       startTime: allDay ? undefined : startTime,
       endTime: allDay ? undefined : endTime,
+      startDate,
+      endDate: endDate || undefined,
       enabled: editing?.enabled ?? true,
     };
     if (editing) {
@@ -174,6 +191,32 @@ export function ManageRecurring() {
           </div>
         </fieldset>
 
+        <div className="grid grid-cols-2 gap-3">
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Från datum
+            <input
+              type="date"
+              required
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Till datum
+            <input
+              type="date"
+              value={endDate}
+              min={startDate || undefined}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2"
+            />
+          </label>
+        </div>
+        <p className="text-xs text-[var(--ink-faint)]">
+          Lämna till-datum tomt för att köra tills vidare.
+        </p>
+
         <label className="flex items-center gap-3 text-sm font-semibold">
           <input
             type="checkbox"
@@ -187,7 +230,7 @@ export function ManageRecurring() {
         {!allDay ? (
           <div className="grid grid-cols-2 gap-3">
             <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-              Start
+              Starttid
               <input
                 type="time"
                 value={startTime}
@@ -196,7 +239,7 @@ export function ManageRecurring() {
               />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-              Slut
+              Sluttid
               <input
                 type="time"
                 value={endTime}
@@ -254,6 +297,10 @@ export function ManageRecurring() {
               const icon =
                 ACTIVITY_ICONS.find((i) => i.key === template.iconKey)?.emoji ??
                 "⭐";
+              const range = formatDateRange(
+                template.startDate,
+                template.endDate,
+              );
               return (
                 <li
                   key={template.id}
@@ -270,6 +317,7 @@ export function ManageRecurring() {
                         : "?"}{" "}
                       · {days}
                       {template.startTime ? ` · ${template.startTime}` : ""}
+                      {range ? ` · ${range}` : ""}
                       {!template.enabled ? " · pausad" : ""}
                     </p>
                   </div>

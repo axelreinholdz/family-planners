@@ -69,6 +69,9 @@ export interface RecurringTemplate {
   endTime?: string;
   allDay: boolean;
   enabled: boolean;
+  /** Inclusive range (YYYY-MM-DD). Missing = open-ended. */
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Todo {

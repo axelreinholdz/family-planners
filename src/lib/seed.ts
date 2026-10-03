@@ -110,6 +110,8 @@ export const SEED_TEMPLATES: RecurringTemplate[] = [
     weekdays: [0, 1, 2, 3, 4],
     allDay: true,
     enabled: true,
+    startDate: "2026-01-01",
+    endDate: "2026-06-12",
   },
   {
     id: TEMPLATE_LILLE_PRESCHOOL,
@@ -119,6 +121,8 @@ export const SEED_TEMPLATES: RecurringTemplate[] = [
     weekdays: [0, 1, 3, 4],
     allDay: true,
     enabled: true,
+    startDate: "2026-01-01",
+    endDate: "2026-06-12",
   },
   {
     id: TEMPLATE_EBBE_FOOTBALL,
@@ -130,6 +134,8 @@ export const SEED_TEMPLATES: RecurringTemplate[] = [
     endTime: "17:00",
     allDay: false,
     enabled: true,
+    startDate: "2026-01-01",
+    endDate: "2026-06-12",
   },
 ];
 
