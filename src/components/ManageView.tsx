@@ -402,7 +402,9 @@ export function ManageView({ onBack }: ManageViewProps) {
       ) : null}
 
       {tab === "settings" ? (
-        <SettingsPanel onReset={() => void resetData()} />
+        <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+          <SettingsPanel onReset={() => void resetData()} />
+        </div>
       ) : null}
     </div>
   );
