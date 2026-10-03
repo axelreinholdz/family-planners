@@ -42,7 +42,7 @@ function PersonRow({
 }) {
   return (
     <div
-      className={`grid min-h-0 grid-cols-[7.5rem_repeat(7,minmax(0,1fr))] gap-1.5 ${
+      className={`grid min-h-0 grid-cols-[10.5rem_repeat(7,minmax(0,1fr))] gap-1.5 ${
         emphasize ? "flex-[1.35]" : "flex-1"
       }`}
     >
@@ -54,14 +54,9 @@ function PersonRow({
         >
           {person.avatar}
         </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-[var(--ink)]">
-            {person.name}
-          </p>
-          <p className="text-[0.65rem] font-medium uppercase tracking-wider text-[var(--ink-muted)]">
-            {person.role === "child" ? "Barn" : "Förälder"}
-          </p>
-        </div>
+        <p className="min-w-0 break-words text-sm font-bold leading-snug text-[var(--ink)]">
+          {person.name}
+        </p>
       </div>
 
       {days.map((day) => {
@@ -173,7 +168,7 @@ export function WeekView() {
         </div>
       </div>
 
-      <div className="grid grid-cols-[7.5rem_repeat(7,minmax(0,1fr))] gap-1.5">
+      <div className="grid grid-cols-[10.5rem_repeat(7,minmax(0,1fr))] gap-1.5">
         <div />
         {days.map((day) => {
           const today = isSameDay(day, new Date());

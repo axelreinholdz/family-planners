@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { IdagView } from "@/components/IdagView";
+import { ManagePinGate } from "@/components/ManagePinGate";
 import { ManageView } from "@/components/ManageView";
 import { SwipePager } from "@/components/SwipePager";
 import { TodoView } from "@/components/TodoView";
@@ -13,13 +14,14 @@ const PAGE_LABELS = ["Vecka", "Idag", "Att göra"] as const;
 function KitchenApp() {
   const [pageIndex, setPageIndex] = useState(0);
   const [manageOpen, setManageOpen] = useState(false);
+  const [pinPrompt, setPinPrompt] = useState(false);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const openManage = () => setManageOpen(true);
+  const requestManage = () => setPinPrompt(true);
 
   const onTitlePointerDown = () => {
     pressTimer.current = setTimeout(() => {
-      openManage();
+      requestManage();
     }, 700);
   };
 
@@ -32,6 +34,18 @@ function KitchenApp() {
 
   if (manageOpen) {
     return <ManageView onBack={() => setManageOpen(false)} />;
+  }
+
+  if (pinPrompt) {
+    return (
+      <ManagePinGate
+        onUnlock={() => {
+          setPinPrompt(false);
+          setManageOpen(true);
+        }}
+        onCancel={() => setPinPrompt(false)}
+      />
+    );
   }
 
   return (
@@ -60,7 +74,7 @@ function KitchenApp() {
           </span>
           <button
             type="button"
-            onClick={openManage}
+            onClick={requestManage}
             aria-label="Öppna föräldraläge"
             className="tap-target flex h-10 w-10 items-center justify-center rounded-full bg-white/50 text-[var(--ink-faint)] ring-1 ring-black/5"
             title="Hantera"

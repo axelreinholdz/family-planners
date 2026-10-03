@@ -24,6 +24,11 @@ import {
   isCloudMode,
   setCloudMode,
 } from "@/lib/repository";
+import {
+  isDefaultManagePin,
+  setManagePin,
+  verifyManagePin,
+} from "@/lib/managePin";
 import { createClient } from "@/lib/supabase/client";
 import { clearCloudCache } from "@/lib/supabase/cloud-db";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -408,10 +413,113 @@ function SettingsPanel({ onReset }: { onReset: () => void }) {
   const cloud = isCloudMode();
   const membership = getCachedMembership();
   const configured = isSupabaseConfigured();
+  const [currentPin, setCurrentPin] = useState("");
+  const [newPin, setNewPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
+  const [pinMessage, setPinMessage] = useState<string | null>(null);
+  const [pinError, setPinError] = useState<string | null>(null);
 
   return (
     <div className="mx-auto flex max-w-lg flex-col gap-4 rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-black/5">
       <h3 className="font-display text-xl font-bold">Inställningar</h3>
+
+      <div className="rounded-2xl bg-[var(--surface-soft)] p-4">
+        <h4 className="font-display text-lg font-bold">PIN till Hantera</h4>
+        <p className="mt-1 text-sm text-[var(--ink-muted)]">
+          Skyddar föräldraläget på den här enheten.
+          {isDefaultManagePin() ? " Standardkod: 1234." : ""}
+        </p>
+        <form
+          className="mt-3 grid gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setPinMessage(null);
+            setPinError(null);
+            try {
+              if (!verifyManagePin(currentPin)) {
+                setPinError("Nuvarande PIN är fel");
+                return;
+              }
+              if (newPin !== confirmPin) {
+                setPinError("Nya PIN-koderna matchar inte");
+                return;
+              }
+              setManagePin(newPin);
+              setCurrentPin("");
+              setNewPin("");
+              setConfirmPin("");
+              setPinMessage("PIN sparad");
+            } catch (err) {
+              setPinError(
+                err instanceof Error ? err.message : "Kunde inte spara PIN",
+              );
+            }
+          }}
+        >
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Nuvarande PIN
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              value={currentPin}
+              onChange={(e) =>
+                setCurrentPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base tracking-widest"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Ny PIN (4–6 siffror)
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              value={newPin}
+              onChange={(e) =>
+                setNewPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base tracking-widest"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Bekräfta ny PIN
+            <input
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoComplete="off"
+              value={confirmPin}
+              onChange={(e) =>
+                setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base tracking-widest"
+            />
+          </label>
+          {pinError ? (
+            <p className="text-sm font-semibold text-red-700">{pinError}</p>
+          ) : null}
+          {pinMessage ? (
+            <p className="text-sm font-semibold text-[var(--accent-deep)]">
+              {pinMessage}
+            </p>
+          ) : null}
+          <button
+            type="submit"
+            disabled={
+              currentPin.length < 4 ||
+              newPin.length < 4 ||
+              confirmPin.length < 4
+            }
+            className="tap-target rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white disabled:opacity-40"
+          >
+            Byt PIN
+          </button>
+        </form>
+      </div>
+
       {cloud && membership ? (
         <>
           <p className="text-sm text-[var(--ink-muted)]">
