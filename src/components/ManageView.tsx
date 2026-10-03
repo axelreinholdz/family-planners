@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { IconPicker } from "@/components/IconPicker";
 import { ManageDinners } from "@/components/ManageDinners";
@@ -18,6 +19,14 @@ import {
   weekRangeLabel,
 } from "@/lib/dates";
 import { ACTIVITY_ICONS, getActivityIcon } from "@/lib/icons";
+import {
+  getCachedMembership,
+  isCloudMode,
+  setCloudMode,
+} from "@/lib/repository";
+import { createClient } from "@/lib/supabase/client";
+import { clearCloudCache } from "@/lib/supabase/cloud-db";
+import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { Event, IconKey, Person } from "@/lib/types";
 
 interface ManageViewProps {
@@ -388,29 +397,75 @@ export function ManageView({ onBack }: ManageViewProps) {
       ) : null}
 
       {tab === "settings" ? (
-        <div className="mx-auto flex max-w-lg flex-col gap-4 rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-black/5">
-          <h3 className="font-display text-xl font-bold">Inställningar</h3>
+        <SettingsPanel onReset={() => void resetData()} />
+      ) : null}
+    </div>
+  );
+}
+
+function SettingsPanel({ onReset }: { onReset: () => void }) {
+  const router = useRouter();
+  const cloud = isCloudMode();
+  const membership = getCachedMembership();
+  const configured = isSupabaseConfigured();
+
+  return (
+    <div className="mx-auto flex max-w-lg flex-col gap-4 rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-black/5">
+      <h3 className="font-display text-xl font-bold">Inställningar</h3>
+      {cloud && membership ? (
+        <>
           <p className="text-sm text-[var(--ink-muted)]">
-            Data sparas lokalt på den här iPaden. Återställning ersätter allt med
-            exempeldata för veckan.
+            Data synkas via Supabase för familjen{" "}
+            <strong>{membership.familyName}</strong>. Dela koden nedan för att
+            logga in från telefon eller annan dator.
           </p>
+          <div className="rounded-2xl bg-[var(--surface-soft)] px-4 py-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-[var(--ink-muted)]">
+              Inbjudningskod
+            </p>
+            <p className="font-display text-3xl font-bold tracking-[0.2em] text-[var(--ink)]">
+              {membership.inviteCode}
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => {
-              if (
-                window.confirm(
-                  "Vill du återställa till exempeldata? Allt ni har lagt in raderas.",
-                )
-              ) {
-                void resetData();
-              }
+              void (async () => {
+                const supabase = createClient();
+                await supabase.auth.signOut();
+                clearCloudCache();
+                setCloudMode(false);
+                router.replace("/");
+                router.refresh();
+              })();
             }}
-            className="tap-target rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white"
+            className="tap-target rounded-xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-bold"
           >
-            Återställ exempeldata
+            Logga ut
           </button>
-        </div>
-      ) : null}
+        </>
+      ) : (
+        <p className="text-sm text-[var(--ink-muted)]">
+          {configured
+            ? "Du kör lokalt just nu. Logga in för att synka mellan enheter."
+            : "Data sparas lokalt på den här enheten (IndexedDB). Lägg till Supabase-nycklar för molnsynk."}
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          if (
+            window.confirm(
+              "Vill du återställa till exempeldata? Allt ni har lagt in raderas.",
+            )
+          ) {
+            onReset();
+          }
+        }}
+        className="tap-target rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white"
+      >
+        Återställ exempeldata
+      </button>
     </div>
   );
 }

@@ -31,7 +31,7 @@ import {
   putTodo,
   resetToSeed,
   saveDinnerMenu,
-} from "@/lib/db";
+} from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
 import { EBBE_ID, SEED_DINNERS } from "@/lib/seed";
 import { foldActiveSession } from "@/lib/screenTime";
