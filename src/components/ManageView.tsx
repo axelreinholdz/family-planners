@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import { ActivityIcon } from "@/components/ActivityIcon";
+import { IconPicker } from "@/components/IconPicker";
 import { ManageDinners } from "@/components/ManageDinners";
 import { ManageRecurring } from "@/components/ManageRecurring";
 import { ManageRoutines } from "@/components/ManageRoutines";
@@ -16,7 +17,7 @@ import {
   weekDays,
   weekRangeLabel,
 } from "@/lib/dates";
-import { ACTIVITY_ICONS } from "@/lib/icons";
+import { ACTIVITY_ICONS, getActivityIcon } from "@/lib/icons";
 import type { Event, IconKey, Person } from "@/lib/types";
 
 interface ManageViewProps {
@@ -233,27 +234,16 @@ export function ManageView({ onBack }: ManageViewProps) {
               <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
                 Ikon
               </legend>
-              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
-                {ACTIVITY_ICONS.map((icon) => (
-                  <button
-                    key={icon.key}
-                    type="button"
-                    onClick={() => {
-                      setIconKey(icon.key);
-                      if (!title || ACTIVITY_ICONS.some((i) => i.label === title)) {
-                        setTitle(icon.label);
-                      }
-                    }}
-                    className={`tap-target flex flex-col items-center rounded-2xl px-1 py-2 ring-2 ${
-                      iconKey === icon.key
-                        ? "bg-[var(--accent-soft)] ring-[var(--accent)]"
-                        : "bg-[var(--surface-soft)] ring-transparent"
-                    }`}
-                  >
-                    <ActivityIcon iconKey={icon.key} size="md" showLabel />
-                  </button>
-                ))}
-              </div>
+              <IconPicker
+                category="activity"
+                value={getActivityIcon(iconKey).emoji}
+                onChange={(icon) => {
+                  setIconKey(icon.key as IconKey);
+                  if (!title || ACTIVITY_ICONS.some((i) => i.label === title)) {
+                    setTitle(icon.label);
+                  }
+                }}
+              />
             </fieldset>
 
             <label className="flex items-center gap-3 text-sm font-semibold text-[var(--ink)]">
@@ -466,14 +456,16 @@ function PersonEditor({
           className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
         />
       </label>
-      <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-        Ikon (emoji)
-        <input
+      <fieldset>
+        <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
+          Ikon
+        </legend>
+        <IconPicker
+          category="person"
           value={avatar}
-          onChange={(e) => setAvatar(e.target.value)}
-          className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
+          onChange={(icon) => setAvatar(icon.emoji)}
         />
-      </label>
+      </fieldset>
       <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
         Färg
         <input

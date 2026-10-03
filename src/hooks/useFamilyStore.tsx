@@ -10,9 +10,12 @@ import {
   type ReactNode,
 } from "react";
 import {
+  applyAllTemplateSpans,
   applyTemplatesForWeek,
+  applyTemplateSpan,
   deleteEvent as dbDeleteEvent,
   deleteRecurringTemplate as dbDeleteRecurringTemplate,
+  deleteRoutine as dbDeleteRoutine,
   deleteTodo as dbDeleteTodo,
   ensureRoutineProgress,
   ensureScreenTimeDay,
@@ -85,12 +88,15 @@ interface FamilyStoreValue {
   resetScreenTimeToday: (personId: string) => Promise<void>;
   toggleRoutineStep: (routineId: string, stepId: string) => Promise<void>;
   saveRoutine: (routine: Routine) => Promise<void>;
+  createRoutine: (input: Omit<Routine, "id">) => Promise<void>;
+  removeRoutine: (id: string) => Promise<void>;
   saveRecurringTemplate: (template: RecurringTemplate) => Promise<void>;
   createRecurringTemplate: (
     input: Omit<RecurringTemplate, "id">,
   ) => Promise<void>;
   removeRecurringTemplate: (id: string) => Promise<void>;
   fillWeekFromTemplates: (weekAnchor?: Date) => Promise<void>;
+  fillAllRecurringTemplates: () => Promise<void>;
   resetData: () => Promise<void>;
 }
 
@@ -359,10 +365,26 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const createRoutine = useCallback(
+    async (input: Omit<Routine, "id">) => {
+      await putRoutine({ id: newId("routine"), ...input });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const removeRoutine = useCallback(
+    async (id: string) => {
+      await dbDeleteRoutine(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
   const saveRecurringTemplate = useCallback(
     async (template: RecurringTemplate) => {
       await putRecurringTemplate(template);
-      await applyTemplatesForWeek();
+      await applyTemplateSpan(template);
       await refresh();
     },
     [refresh],
@@ -370,8 +392,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
 
   const createRecurringTemplate = useCallback(
     async (input: Omit<RecurringTemplate, "id">) => {
-      await putRecurringTemplate({ id: newId("tpl"), ...input });
-      await applyTemplatesForWeek();
+      const template = { id: newId("tpl"), ...input };
+      await putRecurringTemplate(template);
+      await applyTemplateSpan(template);
       await refresh();
     },
     [refresh],
@@ -392,6 +415,11 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     },
     [refresh],
   );
+
+  const fillAllRecurringTemplates = useCallback(async () => {
+    await applyAllTemplateSpans();
+    await refresh();
+  }, [refresh]);
 
   const resetData = useCallback(async () => {
     await resetToSeed();
@@ -431,10 +459,13 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       resetScreenTimeToday,
       toggleRoutineStep,
       saveRoutine,
+      createRoutine,
+      removeRoutine,
       saveRecurringTemplate,
       createRecurringTemplate,
       removeRecurringTemplate,
       fillWeekFromTemplates,
+      fillAllRecurringTemplates,
       resetData,
     }),
     [
@@ -469,10 +500,13 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       resetScreenTimeToday,
       toggleRoutineStep,
       saveRoutine,
+      createRoutine,
+      removeRoutine,
       saveRecurringTemplate,
       createRecurringTemplate,
       removeRecurringTemplate,
       fillWeekFromTemplates,
+      fillAllRecurringTemplates,
       resetData,
     ],
   );

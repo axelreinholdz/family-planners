@@ -1,6 +1,11 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { todayKey } from "./dates";
-import { eventsFromTemplates } from "./recurring";
+import {
+  applySpanForTemplate,
+  eventsFromTemplates,
+  eventsFromTemplatesForWeeks,
+  weekAnchorsBetween,
+} from "./recurring";
 import {
   buildSeedEvents,
   buildSeedTodos,
@@ -191,6 +196,16 @@ async function ensureExtrasSeeded(db: IDBPDatabase<FamilyPlannerDB>) {
   }
 }
 
+async function persistCreatedEvents(created: Event[]) {
+  if (created.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction("events", "readwrite");
+  await Promise.all([
+    ...created.map((event) => tx.store.put(event)),
+    tx.done,
+  ]);
+}
+
 export async function applyTemplatesForWeek(weekAnchor = new Date()) {
   const db = await getDb();
   const [templates, events] = await Promise.all([
@@ -203,12 +218,70 @@ export async function applyTemplatesForWeek(weekAnchor = new Date()) {
     weekAnchor,
     newId,
   );
-  if (created.length === 0) return;
-  const tx = db.transaction("events", "readwrite");
-  await Promise.all([
-    ...created.map((event) => tx.store.put(event)),
-    tx.done,
+  await persistCreatedEvents(created);
+}
+
+/** Materialize template events across every week in an inclusive date span. */
+export async function applyTemplatesBetween(fromKey: string, toKey: string) {
+  const anchors = weekAnchorsBetween(fromKey, toKey);
+  if (anchors.length === 0) return;
+  const db = await getDb();
+  const [templates, events] = await Promise.all([
+    db.getAll("recurringTemplates"),
+    db.getAll("events"),
   ]);
+  const created = eventsFromTemplatesForWeeks(
+    templates,
+    events,
+    anchors,
+    newId,
+  );
+  await persistCreatedEvents(created);
+}
+
+/** Materialize one template across its start/end date span. */
+export async function applyTemplateSpan(template: RecurringTemplate) {
+  const { fromKey, toKey } = applySpanForTemplate(template);
+  const anchors = weekAnchorsBetween(fromKey, toKey);
+  if (anchors.length === 0) return;
+  const db = await getDb();
+  const [events] = await Promise.all([db.getAll("events")]);
+  const created = eventsFromTemplatesForWeeks(
+    [template],
+    events,
+    anchors,
+    newId,
+  );
+  await persistCreatedEvents(created);
+}
+
+/** Materialize all enabled templates across their apply spans (incl. upcoming). */
+export async function applyAllTemplateSpans() {
+  const db = await getDb();
+  const [templates, events] = await Promise.all([
+    db.getAll("recurringTemplates"),
+    db.getAll("events"),
+  ]);
+  const enabled = templates.filter((template) => template.enabled);
+  if (enabled.length === 0) return;
+
+  let fromKey = applySpanForTemplate(enabled[0]).fromKey;
+  let toKey = applySpanForTemplate(enabled[0]).toKey;
+  for (const template of enabled) {
+    const span = applySpanForTemplate(template);
+    if (span.fromKey < fromKey) fromKey = span.fromKey;
+    if (span.toKey > toKey) toKey = span.toKey;
+  }
+
+  const anchors = weekAnchorsBetween(fromKey, toKey);
+  if (anchors.length === 0) return;
+  const created = eventsFromTemplatesForWeeks(
+    enabled,
+    events,
+    anchors,
+    newId,
+  );
+  await persistCreatedEvents(created);
 }
 
 async function ensureSeeded() {
@@ -245,13 +318,13 @@ async function ensureSeeded() {
       tx.objectStore("meta").put(true, "seeded"),
       tx.done,
     ]);
-    await applyTemplatesForWeek();
+    await applyAllTemplateSpans();
     return;
   }
 
   await migrateLegacyPeople(db);
   await ensureExtrasSeeded(db);
-  await applyTemplatesForWeek();
+  await applyAllTemplateSpans();
 }
 
 export async function loadAll(): Promise<{
@@ -381,6 +454,19 @@ export async function putRoutine(routine: Routine) {
   await db.put("routines", routine);
 }
 
+export async function deleteRoutine(id: string) {
+  const db = await getDb();
+  const progress = await db.getAll("routineProgress");
+  const tx = db.transaction(["routines", "routineProgress"], "readwrite");
+  await tx.objectStore("routines").delete(id);
+  await Promise.all([
+    ...progress
+      .filter((row) => row.routineId === id)
+      .map((row) => tx.objectStore("routineProgress").delete(row.id)),
+    tx.done,
+  ]);
+}
+
 export async function putRoutineProgress(progress: RoutineDayProgress) {
   const db = await getDb();
   await db.put("routineProgress", progress);
@@ -455,7 +541,7 @@ export async function resetToSeed() {
     tx.objectStore("meta").put(true, "seeded"),
     tx.done,
   ]);
-  await applyTemplatesForWeek();
+  await applyAllTemplateSpans();
 }
 
 export function newId(prefix: string): string {

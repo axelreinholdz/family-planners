@@ -1,4 +1,5 @@
 import { addDays, startOfWeek, toDateKey } from "./dates";
+import { getIconEmoji } from "./icons";
 import type {
   DinnerPlan,
   Event,
@@ -24,7 +25,7 @@ export const SEED_PEOPLE: Person[] = [
     name: "Mamma",
     role: "parent",
     color: "#E07A5F",
-    avatar: "👩",
+    avatar: getIconEmoji("woman"),
     sortOrder: 0,
   },
   {
@@ -32,7 +33,7 @@ export const SEED_PEOPLE: Person[] = [
     name: "Pappa",
     role: "parent",
     color: "#3D5A80",
-    avatar: "👨",
+    avatar: getIconEmoji("man"),
     sortOrder: 1,
   },
   {
@@ -40,7 +41,7 @@ export const SEED_PEOPLE: Person[] = [
     name: "Ebbe",
     role: "child",
     color: "#2A9D8F",
-    avatar: "👦",
+    avatar: getIconEmoji("boy"),
     sortOrder: 2,
   },
   {
@@ -48,7 +49,7 @@ export const SEED_PEOPLE: Person[] = [
     name: "Lillebror",
     role: "child",
     color: "#E9C46A",
-    avatar: "🧒",
+    avatar: getIconEmoji("child"),
     sortOrder: 3,
   },
 ];
@@ -82,10 +83,30 @@ export const SEED_ROUTINES: Routine[] = [
     personId: EBBE_ID,
     title: "Morgon",
     steps: [
-      { id: "step-clothes", label: "Kläder", emoji: "👕", sortOrder: 0 },
-      { id: "step-teeth", label: "Tänder", emoji: "🪥", sortOrder: 1 },
-      { id: "step-pack", label: "Packa", emoji: "🎒", sortOrder: 2 },
-      { id: "step-shoes", label: "Skor", emoji: "👟", sortOrder: 3 },
+      {
+        id: "step-clothes",
+        label: "Kläder",
+        emoji: getIconEmoji("clothes"),
+        sortOrder: 0,
+      },
+      {
+        id: "step-teeth",
+        label: "Tänder",
+        emoji: getIconEmoji("teeth"),
+        sortOrder: 1,
+      },
+      {
+        id: "step-pack",
+        label: "Packa",
+        emoji: getIconEmoji("pack"),
+        sortOrder: 2,
+      },
+      {
+        id: "step-shoes",
+        label: "Skor",
+        emoji: getIconEmoji("shoes"),
+        sortOrder: 3,
+      },
     ],
   },
   {
@@ -93,10 +114,30 @@ export const SEED_ROUTINES: Routine[] = [
     personId: LILLE_ID,
     title: "Morgon",
     steps: [
-      { id: "step-lille-clothes", label: "Kläder", emoji: "👕", sortOrder: 0 },
-      { id: "step-lille-teeth", label: "Tänder", emoji: "🪥", sortOrder: 1 },
-      { id: "step-lille-breakfast", label: "Frukost", emoji: "🥣", sortOrder: 2 },
-      { id: "step-lille-shoes", label: "Skor", emoji: "👟", sortOrder: 3 },
+      {
+        id: "step-lille-clothes",
+        label: "Kläder",
+        emoji: getIconEmoji("clothes"),
+        sortOrder: 0,
+      },
+      {
+        id: "step-lille-teeth",
+        label: "Tänder",
+        emoji: getIconEmoji("teeth"),
+        sortOrder: 1,
+      },
+      {
+        id: "step-lille-breakfast",
+        label: "Frukost",
+        emoji: getIconEmoji("breakfast"),
+        sortOrder: 2,
+      },
+      {
+        id: "step-lille-shoes",
+        label: "Skor",
+        emoji: getIconEmoji("shoes"),
+        sortOrder: 3,
+      },
     ],
   },
 ];

@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { getIconEmoji } from "@/lib/icons";
 
 interface MicButtonProps {
   /** Called with the final transcript (trimmed). */
@@ -59,7 +60,7 @@ export function MicButton({
             : "bg-[var(--surface-soft)] text-[var(--ink)] ring-1 ring-black/10"
         } ${className}`}
       >
-        {listening ? "⏹" : "🎤"}
+        {listening ? getIconEmoji("stop") : getIconEmoji("mic")}
       </button>
       {error ? (
         <p className="absolute right-0 top-full z-10 mt-1 w-48 rounded-lg bg-white px-2 py-1 text-xs font-semibold text-[#c45c4a] shadow-md ring-1 ring-black/10">

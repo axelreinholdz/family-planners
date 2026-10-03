@@ -1,5 +1,15 @@
-import { addDays, startOfWeek, toDateKey } from "./dates";
+import {
+  addDays,
+  parseDateKey,
+  startOfWeek,
+  toDateKey,
+  todayKey,
+} from "./dates";
 import type { Event, RecurringTemplate } from "./types";
+
+/** Cap how far ahead open-ended templates are materialized at once. */
+const MAX_APPLY_WEEKS = 52;
+const OPEN_ENDED_WEEKS = 26;
 
 function isWithinTemplateRange(
   date: string,
@@ -48,5 +58,67 @@ export function eventsFromTemplates(
     }
   }
 
+  return created;
+}
+
+/** Week-start anchors covering an inclusive YYYY-MM-DD span. */
+export function weekAnchorsBetween(fromKey: string, toKey: string): Date[] {
+  if (!fromKey || !toKey || toKey < fromKey) return [];
+  let cursor = startOfWeek(parseDateKey(fromKey));
+  const end = startOfWeek(parseDateKey(toKey));
+  const anchors: Date[] = [];
+  let guard = 0;
+  while (cursor.getTime() <= end.getTime() && guard < MAX_APPLY_WEEKS) {
+    anchors.push(new Date(cursor));
+    cursor = addDays(cursor, 7);
+    guard += 1;
+  }
+  return anchors;
+}
+
+/**
+ * Date span to materialize for a template.
+ * With an end date: start → end.
+ * Without: current week (or future start) → ~26 upcoming weeks.
+ * Past weeks are filled on demand when browsing Vecka.
+ */
+export function applySpanForTemplate(template: RecurringTemplate): {
+  fromKey: string;
+  toKey: string;
+} {
+  if (template.endDate) {
+    const fromKey = template.startDate ?? todayKey();
+    return {
+      fromKey,
+      toKey: template.endDate < fromKey ? fromKey : template.endDate,
+    };
+  }
+
+  const weekStartKey = toDateKey(startOfWeek(new Date()));
+  const upcomingEnd = toDateKey(
+    addDays(startOfWeek(new Date()), 7 * OPEN_ENDED_WEEKS),
+  );
+  const start = template.startDate ?? weekStartKey;
+  // Future start → wait until then; past start → fill from this week forward.
+  const fromKey = start > weekStartKey ? start : weekStartKey;
+  return {
+    fromKey,
+    toKey: upcomingEnd < fromKey ? fromKey : upcomingEnd,
+  };
+}
+
+export function eventsFromTemplatesForWeeks(
+  templates: RecurringTemplate[],
+  existing: Event[],
+  weekAnchors: Date[],
+  newId: (prefix: string) => string,
+): Event[] {
+  const created: Event[] = [];
+  const known = [...existing];
+  for (const anchor of weekAnchors) {
+    const batch = eventsFromTemplates(templates, known, anchor, newId);
+    created.push(...batch);
+    known.push(...batch);
+  }
   return created;
 }

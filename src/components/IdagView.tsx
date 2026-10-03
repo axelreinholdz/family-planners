@@ -5,9 +5,10 @@ import { useFamilyStore, EBBE_ID } from "@/hooks/useFamilyStore";
 import {
   formatClock,
   mondayWeekdayIndex,
+  todayKey,
   WEEKDAY_LABELS,
 } from "@/lib/dates";
-import { getActivityIcon } from "@/lib/icons";
+import { getActivityIcon, getIconEmoji } from "@/lib/icons";
 import { nextEventsForPerson } from "@/lib/nextEvents";
 import {
   remainingSeconds,
@@ -83,15 +84,11 @@ export function IdagView() {
   const settings = getScreenTimeSettings(personId);
   const day = getScreenTimeDay(personId);
 
-  const routine = routines.find((r) => r.personId === personId) ?? null;
-  const progress = routine
-    ? (routineProgress.find((p) => p.routineId === routine.id) ?? {
-        id: "",
-        routineId: routine.id,
-        date: "",
-        completedStepIds: [] as string[],
-      })
-    : null;
+  const childRoutines = routines
+    .filter((r) => r.personId === personId)
+    .slice()
+    .sort((a, b) => a.title.localeCompare(b.title, "sv"));
+  const today = todayKey();
 
   useEffect(() => {
     if (!ready || !personId) return;
@@ -135,9 +132,6 @@ export function IdagView() {
     undefined,
     new Date(now),
   );
-
-  const doneCount = progress?.completedStepIds.length ?? 0;
-  const stepTotal = routine?.steps.length ?? 0;
 
   if (!ready) {
     return (
@@ -204,7 +198,7 @@ export function IdagView() {
               className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
               style={{ backgroundColor: `${child?.color ?? "#2A9D8F"}33` }}
             >
-              {child?.avatar ?? "👦"}
+              {child?.avatar ?? getIconEmoji("boy")}
             </span>
             <div>
               <p className="font-display text-xl font-bold text-[var(--ink)]">
@@ -322,72 +316,84 @@ export function IdagView() {
         </section>
       </div>
 
-      {routine ? (
-        <section className="rounded-3xl bg-white/75 p-4 shadow-sm ring-1 ring-black/5">
-          <div className="mb-3 flex items-end justify-between gap-3">
-            <div>
-              <h3 className="font-display text-xl font-bold text-[var(--ink)]">
-                {routine.title} · {child?.name ?? "Barn"}
-              </h3>
-              <p className="text-sm font-medium text-[var(--ink-muted)]">
-                {doneCount}/{stepTotal} klart
-              </p>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {[...routine.steps]
-              .sort((a, b) => a.sortOrder - b.sortOrder)
-              .map((step) => {
-                const done = progress?.completedStepIds.includes(step.id);
-                return (
-                  <button
-                    key={step.id}
-                    type="button"
-                    onClick={() =>
-                      void toggleRoutineStep(routine.id, step.id)
-                    }
-                    aria-pressed={done}
-                    className={`tap-target relative flex min-h-[8rem] flex-col items-center justify-center gap-2 rounded-3xl px-3 py-4 ring-[3px] transition ${
-                      done
-                        ? "bg-[var(--accent)] text-white ring-[var(--accent-deep)] shadow-md"
-                        : "bg-[var(--surface-soft)] text-[var(--ink)] ring-transparent"
-                    }`}
-                  >
-                    {done ? (
-                      <span
-                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-[var(--accent-deep)] shadow ring-2 ring-[var(--accent-deep)]"
-                        aria-hidden
+      {childRoutines.length > 0 ? (
+        childRoutines.map((routine) => {
+          const progress = routineProgress.find(
+            (p) => p.routineId === routine.id && p.date === today,
+          );
+          const doneCount = progress?.completedStepIds.length ?? 0;
+          const stepTotal = routine.steps.length;
+          return (
+            <section
+              key={routine.id}
+              className="rounded-3xl bg-white/75 p-4 shadow-sm ring-1 ring-black/5"
+            >
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div>
+                  <h3 className="font-display text-xl font-bold text-[var(--ink)]">
+                    {routine.title} · {child?.name ?? "Barn"}
+                  </h3>
+                  <p className="text-sm font-medium text-[var(--ink-muted)]">
+                    {doneCount}/{stepTotal} klart
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {[...routine.steps]
+                  .sort((a, b) => a.sortOrder - b.sortOrder)
+                  .map((step) => {
+                    const done = progress?.completedStepIds.includes(step.id);
+                    return (
+                      <button
+                        key={step.id}
+                        type="button"
+                        onClick={() =>
+                          void toggleRoutineStep(routine.id, step.id)
+                        }
+                        aria-pressed={done}
+                        className={`tap-target relative flex min-h-[8rem] flex-col items-center justify-center gap-2 rounded-3xl px-3 py-4 ring-[3px] transition ${
+                          done
+                            ? "bg-[var(--accent)] text-white ring-[var(--accent-deep)] shadow-md"
+                            : "bg-[var(--surface-soft)] text-[var(--ink)] ring-transparent"
+                        }`}
                       >
-                        ✓
-                      </span>
-                    ) : null}
-                    <span
-                      className={`text-5xl ${done ? "opacity-90" : ""}`}
-                      aria-hidden
-                    >
-                      {step.emoji}
-                    </span>
-                    <span
-                      className={`font-display text-lg font-bold ${
-                        done ? "text-white" : "text-[var(--ink)]"
-                      }`}
-                    >
-                      {step.label}
-                    </span>
-                    <span
-                      className={`rounded-full px-3 py-1 text-sm font-extrabold uppercase tracking-wide ${
-                        done
-                          ? "bg-white text-[var(--accent-deep)]"
-                          : "bg-white/70 text-[var(--ink-faint)]"
-                      }`}
-                    >
-                      {done ? "Klart" : "Tryck"}
-                    </span>
-                  </button>
-                );
-              })}
-          </div>
-        </section>
+                        {done ? (
+                          <span
+                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-[var(--accent-deep)] shadow ring-2 ring-[var(--accent-deep)]"
+                            aria-hidden
+                          >
+                            ✓
+                          </span>
+                        ) : null}
+                        <span
+                          className={`text-5xl ${done ? "opacity-90" : ""}`}
+                          aria-hidden
+                        >
+                          {step.emoji}
+                        </span>
+                        <span
+                          className={`font-display text-lg font-bold ${
+                            done ? "text-white" : "text-[var(--ink)]"
+                          }`}
+                        >
+                          {step.label}
+                        </span>
+                        <span
+                          className={`rounded-full px-3 py-1 text-sm font-extrabold uppercase tracking-wide ${
+                            done
+                              ? "bg-white text-[var(--accent-deep)]"
+                              : "bg-white/70 text-[var(--ink-faint)]"
+                          }`}
+                        >
+                          {done ? "Klart" : "Tryck"}
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </section>
+          );
+        })
       ) : (
         <section className="rounded-3xl bg-white/60 px-4 py-6 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
           Ingen rutin för {child?.name ?? "detta barn"} ännu. Lägg till under

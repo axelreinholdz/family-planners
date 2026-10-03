@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { IconPicker } from "@/components/IconPicker";
 import { MicButton } from "@/components/MicButton";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { todayKey, WEEKDAY_LABELS } from "@/lib/dates";
-import { ACTIVITY_ICONS } from "@/lib/icons";
+import { ACTIVITY_ICONS, getActivityIcon } from "@/lib/icons";
 import type { IconKey, RecurringTemplate } from "@/lib/types";
 
 function formatDateRange(startDate?: string, endDate?: string): string {
@@ -21,7 +22,7 @@ export function ManageRecurring() {
     createRecurringTemplate,
     saveRecurringTemplate,
     removeRecurringTemplate,
-    fillWeekFromTemplates,
+    fillAllRecurringTemplates,
   } = useFamilyStore();
 
   const children = people.filter((p) => p.role === "child");
@@ -108,7 +109,8 @@ export function ManageRecurring() {
           {editing ? "Redigera mall" : "Ny återkommande"}
         </h3>
         <p className="text-sm text-[var(--ink-muted)]">
-          Mallar fyller Vecka automatiskt för aktuella veckan.
+          Mallar fyller Vecka för hela perioden (från–till). Byt vecka för att
+          se fler.
         </p>
 
         <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
@@ -142,28 +144,16 @@ export function ManageRecurring() {
           <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
             Ikon
           </legend>
-          <div className="flex flex-wrap gap-2">
-            {ACTIVITY_ICONS.map((icon) => (
-              <button
-                key={icon.key}
-                type="button"
-                onClick={() => {
-                  setIconKey(icon.key);
-                  if (!title || ACTIVITY_ICONS.some((i) => i.label === title)) {
-                    setTitle(icon.label);
-                  }
-                }}
-                className={`tap-target rounded-xl px-3 py-2 text-xl ring-2 ${
-                  iconKey === icon.key
-                    ? "bg-[var(--accent-soft)] ring-[var(--accent)]"
-                    : "bg-[var(--surface-soft)] ring-transparent"
-                }`}
-                title={icon.label}
-              >
-                {icon.emoji}
-              </button>
-            ))}
-          </div>
+          <IconPicker
+            category="activity"
+            value={getActivityIcon(iconKey).emoji}
+            onChange={(icon) => {
+              setIconKey(icon.key as IconKey);
+              if (!title || ACTIVITY_ICONS.some((i) => i.label === title)) {
+                setTitle(icon.label);
+              }
+            }}
+          />
         </fieldset>
 
         <fieldset>
@@ -214,7 +204,8 @@ export function ManageRecurring() {
           </label>
         </div>
         <p className="text-xs text-[var(--ink-faint)]">
-          Lämna till-datum tomt för att köra tills vidare.
+          Lämna till-datum tomt för att köra tills vidare — då fylls ca 26
+          kommande veckor automatiskt.
         </p>
 
         <label className="flex items-center gap-3 text-sm font-semibold">
@@ -274,10 +265,10 @@ export function ManageRecurring() {
           <h3 className="font-display text-xl font-bold">Aktiva mallar</h3>
           <button
             type="button"
-            onClick={() => void fillWeekFromTemplates()}
+            onClick={() => void fillAllRecurringTemplates()}
             className="tap-target rounded-full bg-white px-4 py-2 text-sm font-bold ring-1 ring-black/10"
           >
-            Fyll veckan
+            Fyll perioden
           </button>
         </div>
         <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
@@ -294,9 +285,7 @@ export function ManageRecurring() {
                       .map((d) => WEEKDAY_LABELS[d])
                       .join(", ")
                   : "inga dagar";
-              const icon =
-                ACTIVITY_ICONS.find((i) => i.key === template.iconKey)?.emoji ??
-                "⭐";
+              const icon = getActivityIcon(template.iconKey).emoji;
               const range = formatDateRange(
                 template.startDate,
                 template.endDate,
@@ -357,8 +346,8 @@ export function ManageRecurring() {
           )}
         </ul>
         <p className="text-xs text-[var(--ink-faint)]">
-          Befintliga mallhändelser på Vecka ändras inte när du pausar — nya
-          dagar fylls vid “Fyll veckan”.
+          Utan till-datum fylls ca 26 kommande veckor. Befintliga
+          mallhändelser ändras inte när du pausar.
         </p>
       </div>
     </div>

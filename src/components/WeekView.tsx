@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import {
   addDays,
@@ -117,12 +117,17 @@ function PersonRow({
 }
 
 export function WeekView() {
-  const { people, events, ready } = useFamilyStore();
+  const { people, events, ready, fillWeekFromTemplates } = useFamilyStore();
   const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
 
   const days = useMemo(() => weekDays(weekAnchor), [weekAnchor]);
   const children = people.filter((p) => p.role === "child");
   const parents = people.filter((p) => p.role === "parent");
+
+  useEffect(() => {
+    if (!ready) return;
+    void fillWeekFromTemplates(weekAnchor);
+  }, [ready, weekAnchor, fillWeekFromTemplates]);
 
   if (!ready) {
     return (
