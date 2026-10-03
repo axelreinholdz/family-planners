@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { MicButton } from "@/components/MicButton";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { WEEKDAY_LABELS } from "@/lib/dates";
 import { SEED_DINNERS } from "@/lib/seed";
@@ -41,9 +42,9 @@ function DinnerMenuForm({ initial }: { initial: DinnerPlan[] }) {
 
       <div className="flex flex-col gap-2">
         {WEEKDAY_LABELS.map((label, weekday) => (
-          <label
+          <div
             key={label}
-            className="grid grid-cols-[3.5rem_1fr] items-center gap-3 text-sm font-semibold text-[var(--ink-muted)]"
+            className="grid grid-cols-[3.5rem_1fr_auto] items-center gap-2 text-sm font-semibold text-[var(--ink-muted)]"
           >
             <span className="uppercase">{label}</span>
             <input
@@ -55,8 +56,18 @@ function DinnerMenuForm({ initial }: { initial: DinnerPlan[] }) {
               }}
               placeholder="Ingen middag"
               className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base font-semibold text-[var(--ink)]"
+              aria-label={`Middag ${label}`}
             />
-          </label>
+            <MicButton
+              value={titles[weekday] ?? ""}
+              onTranscript={(text) => {
+                const next = [...titles];
+                next[weekday] = text;
+                setTitles(next);
+              }}
+              label={`Tala in middag ${label}`}
+            />
+          </div>
         ))}
       </div>
 

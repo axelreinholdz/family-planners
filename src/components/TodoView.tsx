@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { MicButton } from "@/components/MicButton";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 
 export function TodoView() {
@@ -44,6 +45,12 @@ export function TodoView() {
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Lägg till något att göra…"
           className="tap-target min-w-0 flex-1 rounded-xl border-0 bg-transparent px-3 text-base outline-none placeholder:text-[var(--ink-faint)]"
+        />
+        <MicButton
+          value={draft}
+          append
+          onTranscript={setDraft}
+          label="Tala in att-göra"
         />
         <button
           type="submit"

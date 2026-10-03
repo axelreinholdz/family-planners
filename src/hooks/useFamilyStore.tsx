@@ -10,13 +10,19 @@ import {
   type ReactNode,
 } from "react";
 import {
+  applyTemplatesForWeek,
   deleteEvent as dbDeleteEvent,
+  deleteRecurringTemplate as dbDeleteRecurringTemplate,
   deleteTodo as dbDeleteTodo,
+  ensureRoutineProgress,
   ensureScreenTimeDay,
   loadAll,
   newId,
   putEvent,
   putPerson,
+  putRecurringTemplate,
+  putRoutine,
+  putRoutineProgress,
   putScreenTimeDay,
   putScreenTimeSettings,
   putTodo,
@@ -31,6 +37,9 @@ import type {
   Event,
   IconKey,
   Person,
+  RecurringTemplate,
+  Routine,
+  RoutineDayProgress,
   ScreenTimeDay,
   ScreenTimeSettings,
   Todo,
@@ -44,6 +53,9 @@ interface FamilyStoreValue {
   dinners: DinnerPlan[];
   screenTimeSettings: ScreenTimeSettings[];
   screenTimeDays: ScreenTimeDay[];
+  routines: Routine[];
+  routineProgress: RoutineDayProgress[];
+  recurringTemplates: RecurringTemplate[];
   refresh: () => Promise<void>;
   savePerson: (person: Person) => Promise<void>;
   saveEvent: (event: Event) => Promise<void>;
@@ -71,6 +83,14 @@ interface FamilyStoreValue {
   stopScreenTime: (personId: string) => Promise<void>;
   addScreenTimeBonus: (personId: string, minutes: number) => Promise<void>;
   resetScreenTimeToday: (personId: string) => Promise<void>;
+  toggleRoutineStep: (routineId: string, stepId: string) => Promise<void>;
+  saveRoutine: (routine: Routine) => Promise<void>;
+  saveRecurringTemplate: (template: RecurringTemplate) => Promise<void>;
+  createRecurringTemplate: (
+    input: Omit<RecurringTemplate, "id">,
+  ) => Promise<void>;
+  removeRecurringTemplate: (id: string) => Promise<void>;
+  fillWeekFromTemplates: (weekAnchor?: Date) => Promise<void>;
   resetData: () => Promise<void>;
 }
 
@@ -86,6 +106,13 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     ScreenTimeSettings[]
   >([]);
   const [screenTimeDays, setScreenTimeDays] = useState<ScreenTimeDay[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routineProgress, setRoutineProgress] = useState<RoutineDayProgress[]>(
+    [],
+  );
+  const [recurringTemplates, setRecurringTemplates] = useState<
+    RecurringTemplate[]
+  >([]);
 
   const applyData = useCallback(
     (data: Awaited<ReturnType<typeof loadAll>>) => {
@@ -95,6 +122,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setDinners(data.dinners);
       setScreenTimeSettings(data.screenTimeSettings);
       setScreenTimeDays(data.screenTimeDays);
+      setRoutines(data.routines);
+      setRoutineProgress(data.routineProgress);
+      setRecurringTemplates(data.recurringTemplates);
       setReady(true);
     },
     [],
@@ -151,11 +181,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       endTime?: string;
       allDay: boolean;
     }) => {
-      const event: Event = {
-        id: newId("ev"),
-        ...input,
-      };
-      await putEvent(event);
+      await putEvent({ id: newId("ev"), ...input });
       await refresh();
     },
     [refresh],
@@ -173,13 +199,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     async (title: string) => {
       const trimmed = title.trim();
       if (!trimmed) return;
-      const todo: Todo = {
+      await putTodo({
         id: newId("todo"),
         title: trimmed,
         done: false,
         createdAt: new Date().toISOString(),
-      };
-      await putTodo(todo);
+      });
       await refresh();
     },
     [refresh],
@@ -224,7 +249,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
 
   const getScreenTimeDay = useCallback(
     (personId: string, date = todayKey()) =>
-      screenTimeDays.find((row) => row.personId === personId && row.date === date),
+      screenTimeDays.find(
+        (row) => row.personId === personId && row.date === date,
+      ),
     [screenTimeDays],
   );
 
@@ -254,20 +281,14 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
 
   const startScreenTime = useCallback(
     async (personId: string) => {
-      const settings = screenTimeSettings.find((row) => row.personId === personId);
+      const settings = screenTimeSettings.find(
+        (row) => row.personId === personId,
+      );
       if (settings && !settings.enabled) return;
-
       let day = await ensureScreenTimeDay(personId, todayKey());
       if (day.activeStartedAt) return;
-
-      const remaining =
-        day.allowanceMinutes * 60 - day.usedSeconds;
-      if (remaining <= 0) return;
-
-      day = {
-        ...day,
-        activeStartedAt: new Date().toISOString(),
-      };
+      if (day.allowanceMinutes * 60 - day.usedSeconds <= 0) return;
+      day = { ...day, activeStartedAt: new Date().toISOString() };
       await putScreenTimeDay(day);
       await refresh();
     },
@@ -298,13 +319,13 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
 
   const resetScreenTimeToday = useCallback(
     async (personId: string) => {
-      const settings =
-        screenTimeSettings.find((row) => row.personId === personId) ??
-        ({
-          personId,
-          dailyMinutes: 45,
-          enabled: true,
-        } satisfies ScreenTimeSettings);
+      const settings = screenTimeSettings.find(
+        (row) => row.personId === personId,
+      ) ?? {
+        personId,
+        dailyMinutes: 45,
+        enabled: true,
+      };
       const day = await ensureScreenTimeDay(personId, todayKey());
       await putScreenTimeDay({
         ...day,
@@ -315,6 +336,61 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       await refresh();
     },
     [refresh, screenTimeSettings],
+  );
+
+  const toggleRoutineStep = useCallback(
+    async (routineId: string, stepId: string) => {
+      const progress = await ensureRoutineProgress(routineId, todayKey());
+      const has = progress.completedStepIds.includes(stepId);
+      const completedStepIds = has
+        ? progress.completedStepIds.filter((id) => id !== stepId)
+        : [...progress.completedStepIds, stepId];
+      await putRoutineProgress({ ...progress, completedStepIds });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const saveRoutine = useCallback(
+    async (routine: Routine) => {
+      await putRoutine(routine);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const saveRecurringTemplate = useCallback(
+    async (template: RecurringTemplate) => {
+      await putRecurringTemplate(template);
+      await applyTemplatesForWeek();
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const createRecurringTemplate = useCallback(
+    async (input: Omit<RecurringTemplate, "id">) => {
+      await putRecurringTemplate({ id: newId("tpl"), ...input });
+      await applyTemplatesForWeek();
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const removeRecurringTemplate = useCallback(
+    async (id: string) => {
+      await dbDeleteRecurringTemplate(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const fillWeekFromTemplates = useCallback(
+    async (weekAnchor = new Date()) => {
+      await applyTemplatesForWeek(weekAnchor);
+      await refresh();
+    },
+    [refresh],
   );
 
   const resetData = useCallback(async () => {
@@ -331,6 +407,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       dinners,
       screenTimeSettings,
       screenTimeDays,
+      routines,
+      routineProgress,
+      recurringTemplates,
       refresh,
       savePerson,
       saveEvent,
@@ -350,6 +429,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       stopScreenTime,
       addScreenTimeBonus,
       resetScreenTimeToday,
+      toggleRoutineStep,
+      saveRoutine,
+      saveRecurringTemplate,
+      createRecurringTemplate,
+      removeRecurringTemplate,
+      fillWeekFromTemplates,
       resetData,
     }),
     [
@@ -360,6 +445,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       dinners,
       screenTimeSettings,
       screenTimeDays,
+      routines,
+      routineProgress,
+      recurringTemplates,
       refresh,
       savePerson,
       saveEvent,
@@ -379,6 +467,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       stopScreenTime,
       addScreenTimeBonus,
       resetScreenTimeToday,
+      toggleRoutineStep,
+      saveRoutine,
+      saveRecurringTemplate,
+      createRecurringTemplate,
+      removeRecurringTemplate,
+      fillWeekFromTemplates,
       resetData,
     ],
   );

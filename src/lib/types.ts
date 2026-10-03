@@ -32,6 +32,43 @@ export interface Event {
   startTime?: string; // HH:mm
   endTime?: string;
   allDay: boolean;
+  /** Set when generated from a recurring template */
+  templateId?: string;
+}
+
+export interface RoutineStep {
+  id: string;
+  label: string;
+  emoji: string;
+  sortOrder: number;
+}
+
+export interface Routine {
+  id: string;
+  personId: string;
+  title: string;
+  steps: RoutineStep[];
+}
+
+export interface RoutineDayProgress {
+  /** Composite key: `${routineId}:${date}` */
+  id: string;
+  routineId: string;
+  date: string;
+  completedStepIds: string[];
+}
+
+export interface RecurringTemplate {
+  id: string;
+  personId: string;
+  title: string;
+  iconKey: IconKey;
+  /** Monday-start weekdays 0–6 */
+  weekdays: number[];
+  startTime?: string;
+  endTime?: string;
+  allDay: boolean;
+  enabled: boolean;
 }
 
 export interface Todo {
@@ -70,4 +107,7 @@ export interface FamilyData {
   dinners: DinnerPlan[];
   screenTimeSettings: ScreenTimeSettings[];
   screenTimeDays: ScreenTimeDay[];
+  routines: Routine[];
+  routineProgress: RoutineDayProgress[];
+  recurringTemplates: RecurringTemplate[];
 }

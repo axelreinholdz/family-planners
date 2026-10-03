@@ -1,18 +1,25 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { todayKey } from "./dates";
+import { eventsFromTemplates } from "./recurring";
 import {
   buildSeedEvents,
   buildSeedTodos,
   EBBE_ID,
+  routineProgressId,
   screenTimeDayId,
   SEED_DINNERS,
   SEED_PEOPLE,
+  SEED_ROUTINES,
   SEED_SCREEN_TIME,
+  SEED_TEMPLATES,
 } from "./seed";
 import type {
   DinnerPlan,
   Event,
   Person,
+  RecurringTemplate,
+  Routine,
+  RoutineDayProgress,
   ScreenTimeDay,
   ScreenTimeSettings,
   Todo,
@@ -48,10 +55,22 @@ interface FamilyPlannerDB extends DBSchema {
     key: string;
     value: ScreenTimeDay;
   };
+  routines: {
+    key: string;
+    value: Routine;
+  };
+  routineProgress: {
+    key: string;
+    value: RoutineDayProgress;
+  };
+  recurringTemplates: {
+    key: string;
+    value: RecurringTemplate;
+  };
 }
 
 const DB_NAME = "family-planners";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<FamilyPlannerDB>> | null = null;
 
@@ -79,6 +98,17 @@ function getDb() {
           }
           if (!db.objectStoreNames.contains("screenTimeDays")) {
             db.createObjectStore("screenTimeDays", { keyPath: "id" });
+          }
+        }
+        if (oldVersion < 3) {
+          if (!db.objectStoreNames.contains("routines")) {
+            db.createObjectStore("routines", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("routineProgress")) {
+            db.createObjectStore("routineProgress", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("recurringTemplates")) {
+            db.createObjectStore("recurringTemplates", { keyPath: "id" });
           }
         }
       },
@@ -121,10 +151,36 @@ async function ensureExtrasSeeded(db: IDBPDatabase<FamilyPlannerDB>) {
   }
 
   const settings = await db.getAll("screenTimeSettings");
-  if (settings.length === 0) {
+  const settingsIds = new Set(settings.map((row) => row.personId));
+  const missingSettings = SEED_SCREEN_TIME.filter(
+    (row) => !settingsIds.has(row.personId),
+  );
+  if (missingSettings.length > 0) {
     const tx = db.transaction("screenTimeSettings", "readwrite");
     await Promise.all([
-      ...SEED_SCREEN_TIME.map((row) => tx.store.put(row)),
+      ...missingSettings.map((row) => tx.store.put(row)),
+      tx.done,
+    ]);
+  }
+
+  const routines = await db.getAll("routines");
+  const routineIds = new Set(routines.map((row) => row.id));
+  const missingRoutines = SEED_ROUTINES.filter(
+    (row) => !routineIds.has(row.id),
+  );
+  if (missingRoutines.length > 0) {
+    const tx = db.transaction("routines", "readwrite");
+    await Promise.all([
+      ...missingRoutines.map((row) => tx.store.put(row)),
+      tx.done,
+    ]);
+  }
+
+  const templates = await db.getAll("recurringTemplates");
+  if (templates.length === 0) {
+    const tx = db.transaction("recurringTemplates", "readwrite");
+    await Promise.all([
+      ...SEED_TEMPLATES.map((row) => tx.store.put(row)),
       tx.done,
     ]);
   }
@@ -133,6 +189,26 @@ async function ensureExtrasSeeded(db: IDBPDatabase<FamilyPlannerDB>) {
   if (ebbe && ebbe.name === "Storebror") {
     await db.put("people", { ...ebbe, name: "Ebbe" });
   }
+}
+
+export async function applyTemplatesForWeek(weekAnchor = new Date()) {
+  const db = await getDb();
+  const [templates, events] = await Promise.all([
+    db.getAll("recurringTemplates"),
+    db.getAll("events"),
+  ]);
+  const created = eventsFromTemplates(
+    templates,
+    events,
+    weekAnchor,
+    newId,
+  );
+  if (created.length === 0) return;
+  const tx = db.transaction("events", "readwrite");
+  await Promise.all([
+    ...created.map((event) => tx.store.put(event)),
+    tx.done,
+  ]);
 }
 
 async function ensureSeeded() {
@@ -148,6 +224,9 @@ async function ensureSeeded() {
         "dinners",
         "screenTimeSettings",
         "screenTimeDays",
+        "routines",
+        "routineProgress",
+        "recurringTemplates",
       ],
       "readwrite",
     );
@@ -159,14 +238,20 @@ async function ensureSeeded() {
       ...SEED_SCREEN_TIME.map((row) =>
         tx.objectStore("screenTimeSettings").put(row),
       ),
+      ...SEED_ROUTINES.map((row) => tx.objectStore("routines").put(row)),
+      ...SEED_TEMPLATES.map((row) =>
+        tx.objectStore("recurringTemplates").put(row),
+      ),
       tx.objectStore("meta").put(true, "seeded"),
       tx.done,
     ]);
+    await applyTemplatesForWeek();
     return;
   }
 
   await migrateLegacyPeople(db);
   await ensureExtrasSeeded(db);
+  await applyTemplatesForWeek();
 }
 
 export async function loadAll(): Promise<{
@@ -176,21 +261,38 @@ export async function loadAll(): Promise<{
   dinners: DinnerPlan[];
   screenTimeSettings: ScreenTimeSettings[];
   screenTimeDays: ScreenTimeDay[];
+  routines: Routine[];
+  routineProgress: RoutineDayProgress[];
+  recurringTemplates: RecurringTemplate[];
 }> {
   await ensureSeeded();
   const db = await getDb();
-  const [people, events, todos, dinners, screenTimeSettings, screenTimeDays] =
-    await Promise.all([
-      db.getAll("people"),
-      db.getAll("events"),
-      db.getAll("todos"),
-      db.getAll("dinners"),
-      db.getAll("screenTimeSettings"),
-      db.getAll("screenTimeDays"),
-    ]);
+  const [
+    people,
+    events,
+    todos,
+    dinners,
+    screenTimeSettings,
+    screenTimeDays,
+    routines,
+    routineProgress,
+    recurringTemplates,
+  ] = await Promise.all([
+    db.getAll("people"),
+    db.getAll("events"),
+    db.getAll("todos"),
+    db.getAll("dinners"),
+    db.getAll("screenTimeSettings"),
+    db.getAll("screenTimeDays"),
+    db.getAll("routines"),
+    db.getAll("routineProgress"),
+    db.getAll("recurringTemplates"),
+  ]);
   people.sort((a, b) => a.sortOrder - b.sortOrder);
   todos.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   dinners.sort((a, b) => a.weekday - b.weekday);
+  routines.sort((a, b) => a.title.localeCompare(b.title, "sv"));
+  recurringTemplates.sort((a, b) => a.title.localeCompare(b.title, "sv"));
   return {
     people,
     events,
@@ -198,6 +300,9 @@ export async function loadAll(): Promise<{
     dinners,
     screenTimeSettings,
     screenTimeDays,
+    routines,
+    routineProgress,
+    recurringTemplates,
   };
 }
 
@@ -271,6 +376,44 @@ export async function ensureScreenTimeDay(
   return day;
 }
 
+export async function putRoutine(routine: Routine) {
+  const db = await getDb();
+  await db.put("routines", routine);
+}
+
+export async function putRoutineProgress(progress: RoutineDayProgress) {
+  const db = await getDb();
+  await db.put("routineProgress", progress);
+}
+
+export async function ensureRoutineProgress(
+  routineId: string,
+  date = todayKey(),
+): Promise<RoutineDayProgress> {
+  const db = await getDb();
+  const id = routineProgressId(routineId, date);
+  const existing = await db.get("routineProgress", id);
+  if (existing) return existing;
+  const progress: RoutineDayProgress = {
+    id,
+    routineId,
+    date,
+    completedStepIds: [],
+  };
+  await db.put("routineProgress", progress);
+  return progress;
+}
+
+export async function putRecurringTemplate(template: RecurringTemplate) {
+  const db = await getDb();
+  await db.put("recurringTemplates", template);
+}
+
+export async function deleteRecurringTemplate(id: string) {
+  const db = await getDb();
+  await db.delete("recurringTemplates", id);
+}
+
 export async function resetToSeed() {
   const db = await getDb();
   const tx = db.transaction(
@@ -282,6 +425,9 @@ export async function resetToSeed() {
       "dinners",
       "screenTimeSettings",
       "screenTimeDays",
+      "routines",
+      "routineProgress",
+      "recurringTemplates",
     ],
     "readwrite",
   );
@@ -292,6 +438,9 @@ export async function resetToSeed() {
     tx.objectStore("dinners").clear(),
     tx.objectStore("screenTimeSettings").clear(),
     tx.objectStore("screenTimeDays").clear(),
+    tx.objectStore("routines").clear(),
+    tx.objectStore("routineProgress").clear(),
+    tx.objectStore("recurringTemplates").clear(),
     ...SEED_PEOPLE.map((person) => tx.objectStore("people").put(person)),
     ...buildSeedEvents().map((event) => tx.objectStore("events").put(event)),
     ...buildSeedTodos().map((todo) => tx.objectStore("todos").put(todo)),
@@ -299,9 +448,14 @@ export async function resetToSeed() {
     ...SEED_SCREEN_TIME.map((row) =>
       tx.objectStore("screenTimeSettings").put(row),
     ),
+    ...SEED_ROUTINES.map((row) => tx.objectStore("routines").put(row)),
+    ...SEED_TEMPLATES.map((row) =>
+      tx.objectStore("recurringTemplates").put(row),
+    ),
     tx.objectStore("meta").put(true, "seeded"),
     tx.done,
   ]);
+  await applyTemplatesForWeek();
 }
 
 export function newId(prefix: string): string {

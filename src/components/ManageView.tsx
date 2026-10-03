@@ -3,7 +3,10 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { ManageDinners } from "@/components/ManageDinners";
+import { ManageRecurring } from "@/components/ManageRecurring";
+import { ManageRoutines } from "@/components/ManageRoutines";
 import { ManageScreenTime } from "@/components/ManageScreenTime";
+import { MicButton } from "@/components/MicButton";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import {
   addDays,
@@ -22,6 +25,8 @@ interface ManageViewProps {
 
 type Tab =
   | "activities"
+  | "recurring"
+  | "routines"
   | "dinners"
   | "screentime"
   | "people"
@@ -148,6 +153,8 @@ export function ManageView({ onBack }: ManageViewProps) {
         {(
           [
             ["activities", "Aktiviteter"],
+            ["recurring", "Återkommande"],
+            ["routines", "Rutiner"],
             ["dinners", "Middagsmeny"],
             ["screentime", "Skärmtid"],
             ["people", "Personer"],
@@ -206,12 +213,20 @@ export function ManageView({ onBack }: ManageViewProps) {
 
             <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
               Titel
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="t.ex. Förskola"
-                className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
-              />
+              <span className="flex gap-2">
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="t.ex. Förskola"
+                  className="tap-target min-w-0 flex-1 rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
+                />
+                <MicButton
+                  value={title}
+                  append
+                  onTranscript={setTitle}
+                  label="Tala in aktivitetstitel"
+                />
+              </span>
             </label>
 
             <fieldset>
@@ -361,6 +376,10 @@ export function ManageView({ onBack }: ManageViewProps) {
           </div>
         </div>
       ) : null}
+
+      {tab === "recurring" ? <ManageRecurring /> : null}
+
+      {tab === "routines" ? <ManageRoutines /> : null}
 
       {tab === "dinners" ? <ManageDinners /> : null}
 

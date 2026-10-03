@@ -5,9 +5,9 @@ Local-first weekly family planner for a kitchen iPad. Swedish UI.
 ## Features
 
 - **Vecka** — everyone on one week grid; large activity icons for the kids
-- **Idag** — Ebbe’s skärmtid (daily allowance) + today’s dinner + weekly dinner menu
+- **Idag** — skärmtid, middag, nästa aktivitet, and morning routines
 - **Att göra** — shared checklist
-- **Hantera** — parent screen for activities, middagsmeny, skärmtid, people (gear, or long-press the title)
+- **Hantera** — activities, återkommande mallar, rutiner, middagsmeny, skärmtid, people
 
 Data stays in IndexedDB on the device. No login.
 

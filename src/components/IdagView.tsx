@@ -7,6 +7,8 @@ import {
   mondayWeekdayIndex,
   WEEKDAY_LABELS,
 } from "@/lib/dates";
+import { getActivityIcon } from "@/lib/icons";
+import { nextEventsForPerson } from "@/lib/nextEvents";
 import {
   remainingSeconds,
   usedSecondsTotal,
@@ -19,8 +21,8 @@ function ProgressRing({
   progress: number;
   color: string;
 }) {
-  const size = 220;
-  const stroke = 14;
+  const size = 180;
+  const stroke = 12;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const clamped = Math.min(1, Math.max(0, progress));
@@ -55,23 +57,41 @@ export function IdagView() {
   const {
     ready,
     people,
+    events,
     dinners,
+    routines,
+    routineProgress,
     getScreenTimeSettings,
     getScreenTimeDay,
     ensureTodayScreenTime,
     startScreenTime,
     stopScreenTime,
+    toggleRoutineStep,
   } = useFamilyStore();
 
   const [now, setNow] = useState(() => Date.now());
   const todayWeekday = mondayWeekdayIndex(new Date());
+  const children = people.filter((p) => p.role === "child");
+  const defaultChildId =
+    children.find((p) => p.id === EBBE_ID)?.id ?? children[0]?.id ?? EBBE_ID;
+  const [selectedChildId, setSelectedChildId] = useState(defaultChildId);
 
-  const ebbe =
-    people.find((p) => p.id === EBBE_ID) ??
-    people.find((p) => p.role === "child");
-  const personId = ebbe?.id ?? EBBE_ID;
+  const personId = children.some((p) => p.id === selectedChildId)
+    ? selectedChildId
+    : defaultChildId;
+  const child = children.find((p) => p.id === personId) ?? children[0];
   const settings = getScreenTimeSettings(personId);
   const day = getScreenTimeDay(personId);
+
+  const routine = routines.find((r) => r.personId === personId) ?? null;
+  const progress = routine
+    ? (routineProgress.find((p) => p.routineId === routine.id) ?? {
+        id: "",
+        routineId: routine.id,
+        date: "",
+        completedStepIds: [] as string[],
+      })
+    : null;
 
   useEffect(() => {
     if (!ready || !personId) return;
@@ -85,9 +105,7 @@ export function IdagView() {
 
   useEffect(() => {
     const onVisibility = () => {
-      if (document.visibilityState === "visible") {
-        setNow(Date.now());
-      }
+      if (document.visibilityState === "visible") setNow(Date.now());
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
@@ -95,17 +113,15 @@ export function IdagView() {
 
   const remaining = remainingSeconds(day, now);
   const used = usedSecondsTotal(day, now);
-  const allowanceSeconds = (day?.allowanceMinutes ?? settings?.dailyMinutes ?? 45) * 60;
-  const progress = allowanceSeconds > 0 ? remaining / allowanceSeconds : 0;
+  const allowanceSeconds =
+    (day?.allowanceMinutes ?? settings?.dailyMinutes ?? 45) * 60;
+  const ringProgress = allowanceSeconds > 0 ? remaining / allowanceSeconds : 0;
   const running = Boolean(day?.activeStartedAt);
   const enabled = settings?.enabled !== false;
   const exhausted = remaining <= 0;
 
-  // Auto-stop when time runs out
   useEffect(() => {
-    if (running && remaining <= 0) {
-      void stopScreenTime(personId);
-    }
+    if (running && remaining <= 0) void stopScreenTime(personId);
   }, [running, remaining, personId, stopScreenTime]);
 
   const dinnerToday = useMemo(
@@ -113,16 +129,15 @@ export function IdagView() {
     [dinners, todayWeekday],
   );
 
-  const weekMenu = useMemo(() => {
-    return Array.from({ length: 7 }, (_, weekday) => {
-      const plan = dinners.find((d) => d.weekday === weekday);
-      return {
-        weekday,
-        label: WEEKDAY_LABELS[weekday],
-        title: plan?.title?.trim() ?? "",
-      };
-    });
-  }, [dinners]);
+  const { current, upcoming } = nextEventsForPerson(
+    events,
+    personId,
+    undefined,
+    new Date(now),
+  );
+
+  const doneCount = progress?.completedStepIds.length ?? 0;
+  const stepTotal = routine?.steps.length ?? 0;
 
   if (!ready) {
     return (
@@ -133,45 +148,84 @@ export function IdagView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="text-center">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
-          Idag
-        </h2>
-        <p className="text-sm font-medium text-[var(--ink-muted)]">
-          Skärmtid och middag
-        </p>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+      <div className="flex flex-col items-center gap-3">
+        <div className="text-center">
+          <h2 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
+            Idag
+          </h2>
+          <p className="text-sm font-medium text-[var(--ink-muted)]">
+            Skärmtid, middag, nästa och rutiner
+          </p>
+        </div>
+
+        {children.length > 1 ? (
+          <div
+            className="flex gap-2 rounded-2xl bg-white/70 p-1 shadow-sm ring-1 ring-black/5"
+            role="tablist"
+            aria-label="Välj barn"
+          >
+            {children.map((kid) => {
+              const active = kid.id === personId;
+              return (
+                <button
+                  key={kid.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setSelectedChildId(kid.id)}
+                  className={`tap-target flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                    active
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-[var(--ink-muted)]"
+                  }`}
+                >
+                  <span
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-lg"
+                    style={{
+                      backgroundColor: active ? "#ffffff33" : `${kid.color}33`,
+                    }}
+                    aria-hidden
+                  >
+                    {kid.avatar}
+                  </span>
+                  {kid.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-2">
-        <section className="flex min-h-0 flex-col items-center justify-center gap-4 overflow-y-auto rounded-3xl bg-white/75 p-4 shadow-sm ring-1 ring-black/5">
-          <div className="flex items-center gap-3">
+      <div className="grid gap-3 lg:grid-cols-2">
+        <section className="flex flex-col items-center justify-center gap-3 rounded-3xl bg-white/75 p-4 shadow-sm ring-1 ring-black/5">
+          <div className="flex items-center gap-3 self-start">
             <span
-              className="flex h-14 w-14 items-center justify-center rounded-full text-3xl"
-              style={{ backgroundColor: `${ebbe?.color ?? "#2A9D8F"}33` }}
+              className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
+              style={{ backgroundColor: `${child?.color ?? "#2A9D8F"}33` }}
             >
-              {ebbe?.avatar ?? "👦"}
+              {child?.avatar ?? "👦"}
             </span>
             <div>
-              <p className="font-display text-2xl font-bold text-[var(--ink)]">
+              <p className="font-display text-xl font-bold text-[var(--ink)]">
                 Skärmtid
               </p>
               <p className="text-sm font-semibold text-[var(--ink-muted)]">
-                {ebbe?.name ?? "Ebbe"}
+                {child?.name ?? "Barn"}
               </p>
             </div>
           </div>
 
           <div className="relative">
             <ProgressRing
-              progress={progress}
-              color={exhausted ? "#c45c4a" : (ebbe?.color ?? "#2A9D8F")}
+              progress={ringProgress}
+              color={exhausted ? "#c45c4a" : (child?.color ?? "#2A9D8F")}
             />
             <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <p className="font-display text-5xl font-bold tabular-nums text-[var(--ink)]">
+              <p className="font-display text-4xl font-bold tabular-nums text-[var(--ink)]">
                 {formatClock(remaining)}
               </p>
-              <p className="mt-1 text-sm font-semibold text-[var(--ink-muted)]">
+              <p className="text-xs font-semibold text-[var(--ink-muted)]">
                 {exhausted ? "Slut för idag" : "kvar idag"}
               </p>
             </div>
@@ -183,80 +237,163 @@ export function IdagView() {
           </p>
 
           {!enabled ? (
-            <p className="rounded-2xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-semibold text-[var(--ink-muted)]">
-              Skärmtid är avstängd just nu.
+            <p className="text-sm font-semibold text-[var(--ink-muted)]">
+              Skärmtid är avstängd.
             </p>
+          ) : running ? (
+            <button
+              type="button"
+              onClick={() => void stopScreenTime(personId)}
+              className="tap-target w-full max-w-xs rounded-2xl bg-[#c45c4a] px-6 py-4 text-lg font-bold text-white"
+            >
+              Stoppa
+            </button>
           ) : (
-            <div className="flex w-full max-w-sm gap-3">
-              {running ? (
-                <button
-                  type="button"
-                  onClick={() => void stopScreenTime(personId)}
-                  className="tap-target flex-1 rounded-2xl bg-[#c45c4a] px-6 py-5 text-xl font-bold text-white shadow-sm"
-                >
-                  Stoppa
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled={exhausted}
-                  onClick={() => void startScreenTime(personId)}
-                  className="tap-target flex-1 rounded-2xl bg-[var(--accent)] px-6 py-5 text-xl font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Starta
-                </button>
-              )}
-            </div>
+            <button
+              type="button"
+              disabled={exhausted}
+              onClick={() => void startScreenTime(personId)}
+              className="tap-target w-full max-w-xs rounded-2xl bg-[var(--accent)] px-6 py-4 text-lg font-bold text-white disabled:opacity-40"
+            >
+              Starta
+            </button>
           )}
         </section>
 
-        <section className="flex min-h-0 flex-col gap-3 overflow-y-auto">
-          <div className="rounded-3xl bg-white/75 p-5 shadow-sm ring-1 ring-black/5">
+        <section className="flex flex-col gap-3">
+          <div className="rounded-3xl bg-white/75 p-4 shadow-sm ring-1 ring-black/5">
             <p className="text-xs font-bold uppercase tracking-wider text-[var(--ink-muted)]">
               Middag idag · {WEEKDAY_LABELS[todayWeekday]}
             </p>
-            <p className="mt-2 font-display text-3xl font-bold text-[var(--ink)] sm:text-4xl">
-              {dinnerToday?.title?.trim()
-                ? dinnerToday.title
-                : "Ingen middag planerad"}
+            <p className="mt-1 font-display text-3xl font-bold text-[var(--ink)]">
+              {dinnerToday?.title?.trim() || "Ingen middag planerad"}
             </p>
           </div>
 
-          <div className="min-h-0 flex-1 rounded-3xl bg-white/65 p-4 shadow-sm ring-1 ring-black/5">
-            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-[var(--ink-muted)]">
-              Veckans middagar
-            </h3>
-            <ul className="flex flex-col gap-1.5">
-              {weekMenu.map((item) => {
-                const isToday = item.weekday === todayWeekday;
-                return (
+          <div className="flex-1 rounded-3xl bg-white/75 p-4 shadow-sm ring-1 ring-black/5">
+            <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[var(--ink-muted)]">
+              Nästa för {child?.name ?? "barn"}
+            </p>
+            {current ? (
+              <div className="flex items-center gap-3 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 ring-1 ring-[var(--accent)]/30">
+                <span className="text-4xl" aria-hidden>
+                  {getActivityIcon(current.iconKey).emoji}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-display text-xl font-bold text-[var(--ink)]">
+                    {current.title}
+                  </p>
+                  <p className="text-sm font-medium text-[var(--ink-muted)]">
+                    {current.startTime
+                      ? current.endTime
+                        ? `${current.startTime}–${current.endTime}`
+                        : `Från ${current.startTime}`
+                      : "Heldag"}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-2xl bg-[var(--surface-soft)] px-4 py-6 text-sm text-[var(--ink-muted)]">
+                Inget mer inlagt idag.
+              </p>
+            )}
+
+            {upcoming.length > 0 ? (
+              <ul className="mt-2 flex flex-col gap-1.5">
+                {upcoming.map((event) => (
                   <li
-                    key={item.weekday}
-                    className={`flex items-center justify-between gap-3 rounded-2xl px-3 py-2.5 ${
-                      isToday
-                        ? "bg-[var(--accent-soft)] ring-1 ring-[var(--accent)]/40"
-                        : "bg-[var(--surface-soft)]"
-                    }`}
+                    key={event.id}
+                    className="flex items-center gap-3 rounded-2xl bg-[var(--surface-soft)] px-3 py-2"
                   >
-                    <span className="w-10 text-sm font-bold uppercase text-[var(--ink-muted)]">
-                      {item.label}
+                    <span className="text-xl" aria-hidden>
+                      {getActivityIcon(event.iconKey).emoji}
                     </span>
-                    <span
-                      className={`min-w-0 flex-1 truncate text-right text-base font-semibold ${
-                        item.title
-                          ? "text-[var(--ink)]"
-                          : "text-[var(--ink-faint)]"
-                      }`}
-                    >
-                      {item.title || "—"}
+                    <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">
+                      {event.title}
+                    </span>
+                    <span className="text-xs font-medium text-[var(--ink-muted)]">
+                      {event.startTime ?? "Heldag"}
                     </span>
                   </li>
-                );
-              })}
-            </ul>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </section>
       </div>
+
+      {routine ? (
+        <section className="rounded-3xl bg-white/75 p-4 shadow-sm ring-1 ring-black/5">
+          <div className="mb-3 flex items-end justify-between gap-3">
+            <div>
+              <h3 className="font-display text-xl font-bold text-[var(--ink)]">
+                {routine.title} · {child?.name ?? "Barn"}
+              </h3>
+              <p className="text-sm font-medium text-[var(--ink-muted)]">
+                {doneCount}/{stepTotal} klart
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[...routine.steps]
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((step) => {
+                const done = progress?.completedStepIds.includes(step.id);
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    onClick={() =>
+                      void toggleRoutineStep(routine.id, step.id)
+                    }
+                    aria-pressed={done}
+                    className={`tap-target relative flex min-h-[8rem] flex-col items-center justify-center gap-2 rounded-3xl px-3 py-4 ring-[3px] transition ${
+                      done
+                        ? "bg-[var(--accent)] text-white ring-[var(--accent-deep)] shadow-md"
+                        : "bg-[var(--surface-soft)] text-[var(--ink)] ring-transparent"
+                    }`}
+                  >
+                    {done ? (
+                      <span
+                        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-[var(--accent-deep)] shadow ring-2 ring-[var(--accent-deep)]"
+                        aria-hidden
+                      >
+                        ✓
+                      </span>
+                    ) : null}
+                    <span
+                      className={`text-5xl ${done ? "opacity-90" : ""}`}
+                      aria-hidden
+                    >
+                      {step.emoji}
+                    </span>
+                    <span
+                      className={`font-display text-lg font-bold ${
+                        done ? "text-white" : "text-[var(--ink)]"
+                      }`}
+                    >
+                      {step.label}
+                    </span>
+                    <span
+                      className={`rounded-full px-3 py-1 text-sm font-extrabold uppercase tracking-wide ${
+                        done
+                          ? "bg-white text-[var(--accent-deep)]"
+                          : "bg-white/70 text-[var(--ink-faint)]"
+                      }`}
+                    >
+                      {done ? "Klart" : "Tryck"}
+                    </span>
+                  </button>
+                );
+              })}
+          </div>
+        </section>
+      ) : (
+        <section className="rounded-3xl bg-white/60 px-4 py-6 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
+          Ingen rutin för {child?.name ?? "detta barn"} ännu. Lägg till under
+          Hantera → Rutiner.
+        </section>
+      )}
     </div>
   );
 }
