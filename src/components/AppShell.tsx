@@ -1,0 +1,90 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { ManageView } from "@/components/ManageView";
+import { SwipePager } from "@/components/SwipePager";
+import { TodoView } from "@/components/TodoView";
+import { WeekView } from "@/components/WeekView";
+import { FamilyStoreProvider } from "@/hooks/useFamilyStore";
+
+function KitchenApp() {
+  const [pageIndex, setPageIndex] = useState(0);
+  const [manageOpen, setManageOpen] = useState(false);
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openManage = () => setManageOpen(true);
+
+  const onTitlePointerDown = () => {
+    pressTimer.current = setTimeout(() => {
+      openManage();
+    }, 700);
+  };
+
+  const clearPress = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+      pressTimer.current = null;
+    }
+  };
+
+  if (manageOpen) {
+    return <ManageView onBack={() => setManageOpen(false)} />;
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <header className="flex items-center justify-between gap-3 px-4 pt-3 sm:px-6">
+        <button
+          type="button"
+          onPointerDown={onTitlePointerDown}
+          onPointerUp={clearPress}
+          onPointerLeave={clearPress}
+          onPointerCancel={clearPress}
+          className="text-left"
+          aria-label="Family Planners. Håll inne för föräldraläge."
+        >
+          <p className="font-display text-lg font-bold tracking-tight text-[var(--ink)] sm:text-xl">
+            Family Planners
+          </p>
+          <p className="text-xs font-medium text-[var(--ink-muted)]">
+            Köks-iPad · svep mellan vyer
+          </p>
+        </button>
+
+        <div className="flex items-center gap-2">
+          <span className="hidden rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-[var(--ink-muted)] ring-1 ring-black/5 sm:inline">
+            {pageIndex === 0 ? "Vecka" : "Att göra"}
+          </span>
+          <button
+            type="button"
+            onClick={openManage}
+            aria-label="Öppna föräldraläge"
+            className="tap-target flex h-10 w-10 items-center justify-center rounded-full bg-white/50 text-[var(--ink-faint)] ring-1 ring-black/5"
+            title="Hantera"
+          >
+            ⚙
+          </button>
+        </div>
+      </header>
+
+      <SwipePager
+        activeIndex={pageIndex}
+        onIndexChange={setPageIndex}
+        pages={[
+          { id: "week", label: "Veckans schema", content: <WeekView /> },
+          { id: "todos", label: "Att göra", content: <TodoView /> },
+        ]}
+      />
+    </div>
+  );
+}
+
+export function AppShell() {
+  return (
+    <FamilyStoreProvider>
+      <div className="app-frame flex h-[100dvh] flex-col overflow-hidden">
+        <KitchenApp />
+      </div>
+    </FamilyStoreProvider>
+  );
+}

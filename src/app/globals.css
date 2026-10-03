@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f3f7f4;
+  --foreground: #1f2a24;
+  --ink: #1f2a24;
+  --ink-muted: #5c6b62;
+  --ink-faint: #9aa89f;
+  --accent: #2a9d8f;
+  --accent-deep: #1f7a6f;
+  --accent-soft: #d7f0eb;
+  --surface-soft: #e8f0ea;
+  --sun: #f4a261;
+  --sky: #a8dadc;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-body);
+  --font-display: var(--font-display);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+.font-display {
+  font-family: var(--font-display), var(--font-body), system-ui, sans-serif;
+}
+
+.app-frame {
+  background:
+    radial-gradient(ellipse 80% 60% at 10% 0%, rgba(244, 162, 97, 0.28), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 90% 10%, rgba(168, 218, 220, 0.45), transparent 50%),
+    linear-gradient(165deg, #f7faf7 0%, #eef5f0 45%, #e7f1ec 100%);
+}
+
+.tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Hide scrollbar on swipe pager while keeping scroll */
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
