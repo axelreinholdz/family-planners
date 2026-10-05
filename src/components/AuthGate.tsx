@@ -47,9 +47,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
     }
 
     let cancelled = false;
+    const supabase = createClient();
+
     (async () => {
       try {
-        const supabase = createClient();
         const {
           data: { user },
         } = await supabase.auth.getUser();
@@ -67,8 +68,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
       }
     })();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (cancelled) return;
+      if (event === "SIGNED_OUT") {
+        clearCloudCache();
+        setCloudMode(false);
+        resetManagePinForLocalMode();
+        setPhase("login");
+      }
+    });
+
     return () => {
       cancelled = true;
+      subscription.unsubscribe();
     };
   }, []);
 

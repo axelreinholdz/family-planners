@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { IconPicker } from "@/components/IconPicker";
 import { ManageDinners } from "@/components/ManageDinners";
@@ -28,6 +27,7 @@ import {
 } from "@/lib/repository";
 import {
   isDefaultManagePin,
+  resetManagePinForLocalMode,
   setManagePin,
   verifyManagePin,
 } from "@/lib/managePin";
@@ -535,7 +535,6 @@ export function ManageView({ onBack }: ManageViewProps) {
 }
 
 function SettingsPanel({ onReset }: { onReset: () => void }) {
-  const router = useRouter();
   const cloud = isCloudMode();
   const membership = getCachedMembership();
   const configured = isSupabaseConfigured();
@@ -682,8 +681,7 @@ function SettingsPanel({ onReset }: { onReset: () => void }) {
                 await supabase.auth.signOut();
                 clearCloudCache();
                 setCloudMode(false);
-                router.replace("/");
-                router.refresh();
+                resetManagePinForLocalMode();
               })();
             }}
             className="tap-target rounded-xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-bold"
