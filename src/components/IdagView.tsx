@@ -10,6 +10,7 @@ import {
 } from "@/lib/dates";
 import { getIconEmoji, resolveActivityEmoji } from "@/lib/icons";
 import { nextEventsForPerson } from "@/lib/nextEvents";
+import { routineVisibleNow, compareRoutines } from "@/lib/routines";
 import {
   remainingSeconds,
   usedSecondsTotal,
@@ -85,9 +86,12 @@ export function IdagView() {
   const day = getScreenTimeDay(personId);
 
   const childRoutines = routines
+    .filter((r) =>
+      routineVisibleNow(r, todayWeekday, new Date(now)),
+    )
     .filter((r) => r.personId === personId)
     .slice()
-    .sort((a, b) => a.title.localeCompare(b.title, "sv"));
+    .sort(compareRoutines);
   const today = todayKey();
 
   useEffect(() => {
@@ -338,7 +342,7 @@ export function IdagView() {
                   </p>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="flex flex-nowrap gap-2">
                 {[...routine.steps]
                   .sort((a, b) => a.sortOrder - b.sortOrder)
                   .map((step) => {
@@ -351,7 +355,7 @@ export function IdagView() {
                           void toggleRoutineStep(routine.id, step.id)
                         }
                         aria-pressed={done}
-                        className={`tap-target relative flex min-h-[8rem] flex-col items-center justify-center gap-2 rounded-3xl px-3 py-4 ring-[3px] transition ${
+                        className={`tap-target relative flex min-h-[6.5rem] min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 py-3 ring-2 transition ${
                           done
                             ? "bg-[var(--accent)] text-white ring-[var(--accent-deep)] shadow-md"
                             : "bg-[var(--surface-soft)] text-[var(--ink)] ring-transparent"
@@ -359,27 +363,27 @@ export function IdagView() {
                       >
                         {done ? (
                           <span
-                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-white text-lg font-black text-[var(--accent-deep)] shadow ring-2 ring-[var(--accent-deep)]"
+                            className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm font-black text-[var(--accent-deep)] shadow ring-1 ring-[var(--accent-deep)]"
                             aria-hidden
                           >
                             ✓
                           </span>
                         ) : null}
                         <span
-                          className={`text-5xl ${done ? "opacity-90" : ""}`}
+                          className={`text-4xl leading-none ${done ? "opacity-90" : ""}`}
                           aria-hidden
                         >
                           {step.emoji}
                         </span>
                         <span
-                          className={`font-display text-lg font-bold ${
+                          className={`max-w-full truncate px-0.5 text-center font-display text-base font-bold ${
                             done ? "text-white" : "text-[var(--ink)]"
                           }`}
                         >
                           {step.label}
                         </span>
                         <span
-                          className={`rounded-full px-3 py-1 text-sm font-extrabold uppercase tracking-wide ${
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wide ${
                             done
                               ? "bg-white text-[var(--accent-deep)]"
                               : "bg-white/70 text-[var(--ink-faint)]"
@@ -396,8 +400,8 @@ export function IdagView() {
         })
       ) : (
         <section className="rounded-3xl bg-white/60 px-4 py-6 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
-          Ingen rutin för {child?.name ?? "detta barn"} ännu. Lägg till under
-          Hantera → Rutiner.
+          Ingen rutin för {child?.name ?? "detta barn"} just nu. Lägg till, eller
+          ändra dagar och tider under Hantera → Rutiner.
         </section>
       )}
     </div>

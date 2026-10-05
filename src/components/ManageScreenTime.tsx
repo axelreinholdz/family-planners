@@ -33,11 +33,16 @@ function ScreenTimeEditor({ personId }: { personId: string }) {
     return () => window.clearInterval(id);
   }, []);
 
+  useEffect(() => {
+    setDailyMinutes(settings?.dailyMinutes ?? 45);
+    setEnabled(settings?.enabled ?? true);
+  }, [settings?.dailyMinutes, settings?.enabled, personId]);
+
   const remaining = remainingSeconds(day, now);
   const used = usedSecondsTotal(day, now);
 
   return (
-    <>
+    <div className="flex flex-col gap-3">
       <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
         Minuter per dag
         <input
@@ -106,44 +111,83 @@ function ScreenTimeEditor({ personId }: { personId: string }) {
           </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
 export function ManageScreenTime() {
-  const { people } = useFamilyStore();
+  const { people, getScreenTimeSettings, getScreenTimeDay } = useFamilyStore();
   const children = people.filter((p) => p.role === "child");
-  const defaultId =
-    children.find((p) => p.id === EBBE_ID)?.id ?? children[0]?.id ?? EBBE_ID;
-  const [personId, setPersonId] = useState(defaultId);
+  const [editingId, setEditingId] = useState<string | null>(
+    () => children.find((p) => p.id === EBBE_ID)?.id ?? children[0]?.id ?? null,
+  );
+  const [now, setNow] = useState(() => Date.now());
 
-  const selectedId = children.some((p) => p.id === personId)
-    ? personId
-    : defaultId;
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-4 overflow-y-auto rounded-3xl bg-white/80 p-5 shadow-sm ring-1 ring-black/5">
-      <h3 className="font-display text-xl font-bold">Skärmtid</h3>
-      <p className="text-sm text-[var(--ink-muted)]">
-        Daglig tillåtelse. Barnet startar och stoppar på Idag-sidan.
-      </p>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+      <div>
+        <h3 className="font-display text-xl font-bold">Skärmtid</h3>
+        <p className="text-sm text-[var(--ink-muted)]">
+          Daglig tillåtelse. Barnet startar och stoppar på Idag-sidan.
+        </p>
+      </div>
 
-      <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-        Barn
-        <select
-          value={selectedId}
-          onChange={(e) => setPersonId(e.target.value)}
-          className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
-        >
-          {children.map((child) => (
-            <option key={child.id} value={child.id}>
-              {child.avatar} {child.name}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <ScreenTimeEditor key={selectedId} personId={selectedId} />
+      {children.length === 0 ? (
+        <div className="rounded-3xl bg-white/80 px-4 py-8 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
+          Inga barn ännu.
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {children.map((child) => {
+            const settings = getScreenTimeSettings(child.id);
+            const day = getScreenTimeDay(child.id);
+            const remaining = remainingSeconds(day, now);
+            const isEditing = editingId === child.id;
+            return (
+              <li
+                key={child.id}
+                className="rounded-3xl bg-white/80 shadow-sm ring-1 ring-black/5"
+              >
+                <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+                  <span className="text-2xl" aria-hidden>
+                    {child.avatar}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-display text-lg font-bold text-[var(--ink)]">
+                      {child.name}
+                    </p>
+                    <p className="truncate text-sm text-[var(--ink-muted)]">
+                      {settings?.enabled === false
+                        ? "Avstängd"
+                        : `${settings?.dailyMinutes ?? 45} min/dag · ${formatClock(remaining)} kvar`}
+                      {day?.activeStartedAt ? " · pågår" : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setEditingId((id) => (id === child.id ? null : child.id))
+                    }
+                    className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--accent-deep)]"
+                  >
+                    {isEditing ? "Stäng" : "Ändra"}
+                  </button>
+                </div>
+                {isEditing ? (
+                  <div className="border-t border-black/5 px-4 py-4">
+                    <ScreenTimeEditor key={child.id} personId={child.id} />
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

@@ -10,6 +10,10 @@ import {
 } from "@/lib/supabase/family";
 import { clearCloudCache } from "@/lib/supabase/cloud-db";
 import { setCloudMode } from "@/lib/repository";
+import {
+  resetManagePinForLocalMode,
+  syncManagePinFromCloud,
+} from "@/lib/managePin";
 
 type Phase =
   | "loading"
@@ -142,6 +146,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       await createFamily(supabase, familyName.trim() || "Familjen");
       clearCloudCache();
       setCloudMode(true);
+      await syncManagePinFromCloud();
       setPhase("ready");
     } catch (err) {
       const message =
@@ -161,6 +166,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       await joinFamily(supabase, inviteCode);
       clearCloudCache();
       setCloudMode(true);
+      await syncManagePinFromCloud();
       setPhase("ready");
     } catch (err) {
       setError(
@@ -176,6 +182,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     clearCloudCache();
     setCloudMode(false);
+    resetManagePinForLocalMode();
     setPhase("login");
   };
 
@@ -420,6 +427,12 @@ async function finishAuth(
       return;
     }
     setCloudMode(true);
+    try {
+      await syncManagePinFromCloud();
+    } catch (pinErr) {
+      console.error("syncManagePinFromCloud failed", pinErr);
+    }
+    if (cancelled) return;
     setPhase("ready");
   } catch (err) {
     if (cancelled) return;

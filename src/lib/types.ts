@@ -38,6 +38,13 @@ export interface Routine {
   id: string;
   personId: string;
   title: string;
+  /** Monday-start weekdays 0–6. Empty/missing = every day. */
+  weekdays: number[];
+  /** Optional HH:mm window when the routine is shown on Idag. Missing = all day. */
+  showFrom?: string;
+  showUntil?: string;
+  /** Display order among a child’s routines (lower first). */
+  sortOrder: number;
   steps: RoutineStep[];
 }
 

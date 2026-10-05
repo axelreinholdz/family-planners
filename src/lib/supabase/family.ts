@@ -8,12 +8,13 @@ import {
   SEED_SCREEN_TIME,
   SEED_TEMPLATES,
 } from "@/lib/seed";
-import type { FamilyData } from "@/lib/types";
 import {
   applySpanForTemplate,
   eventsFromTemplatesForWeeks,
   weekAnchorsBetween,
 } from "@/lib/recurring";
+import { normalizeRoutine } from "@/lib/routines";
+import type { FamilyData } from "@/lib/types";
 
 function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -244,7 +245,7 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
     dinners: partial.dinners ?? base.dinners,
     screenTimeSettings: partial.screenTimeSettings ?? base.screenTimeSettings,
     screenTimeDays: partial.screenTimeDays ?? base.screenTimeDays,
-    routines: partial.routines ?? base.routines,
+    routines: (partial.routines ?? base.routines).map(normalizeRoutine),
     routineProgress: partial.routineProgress ?? base.routineProgress,
     recurringTemplates: partial.recurringTemplates ?? base.recurringTemplates,
   };

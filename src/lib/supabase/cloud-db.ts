@@ -9,6 +9,7 @@ import {
   weekAnchorsBetween,
 } from "@/lib/recurring";
 import { todayKey } from "@/lib/dates";
+import { compareRoutines } from "@/lib/routines";
 import {
   buildSeedFamilyData,
   getMembership,
@@ -33,6 +34,18 @@ type Membership = NonNullable<Awaited<ReturnType<typeof getMembership>>>;
 
 let cachedMembership: Membership | null = null;
 let cachedPayload: FamilyData | null = null;
+
+/** Serialize cloud read/write so concurrent edits don't clobber each other. */
+let writeChain: Promise<unknown> = Promise.resolve();
+
+function enqueueWrite<T>(fn: () => Promise<T>): Promise<T> {
+  const run = writeChain.then(fn, fn);
+  writeChain = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
 
 function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -71,7 +84,7 @@ function sortPayload(payload: FamilyData) {
   payload.people.sort((a, b) => a.sortOrder - b.sortOrder);
   payload.todos.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   payload.dinners.sort((a, b) => a.weekday - b.weekday);
-  payload.routines.sort((a, b) => a.title.localeCompare(b.title, "sv"));
+  payload.routines.sort(compareRoutines);
   payload.recurringTemplates.sort((a, b) =>
     a.title.localeCompare(b.title, "sv"),
   );
@@ -87,37 +100,41 @@ export function getCachedMembership() {
 }
 
 export async function cloudLoadAll(): Promise<FamilyData> {
-  clearCloudCache();
-  const payload = await readPayload();
-  const enabled = payload.recurringTemplates.filter((t) => t.enabled);
-  if (enabled.length === 0) return payload;
+  return enqueueWrite(async () => {
+    clearCloudCache();
+    const payload = await readPayload();
+    const enabled = payload.recurringTemplates.filter((t) => t.enabled);
+    if (enabled.length === 0) return payload;
 
-  let fromKey = applySpanForTemplate(enabled[0]).fromKey;
-  let toKey = applySpanForTemplate(enabled[0]).toKey;
-  for (const template of enabled) {
-    const span = applySpanForTemplate(template);
-    if (span.fromKey < fromKey) fromKey = span.fromKey;
-    if (span.toKey > toKey) toKey = span.toKey;
-  }
-  const created = eventsFromTemplatesForWeeks(
-    enabled,
-    payload.events,
-    weekAnchorsBetween(fromKey, toKey),
-    newId,
-  );
-  if (created.length > 0) {
-    payload.events.push(...created);
-    return writePayload(payload);
-  }
-  return payload;
+    let fromKey = applySpanForTemplate(enabled[0]).fromKey;
+    let toKey = applySpanForTemplate(enabled[0]).toKey;
+    for (const template of enabled) {
+      const span = applySpanForTemplate(template);
+      if (span.fromKey < fromKey) fromKey = span.fromKey;
+      if (span.toKey > toKey) toKey = span.toKey;
+    }
+    const created = eventsFromTemplatesForWeeks(
+      enabled,
+      payload.events,
+      weekAnchorsBetween(fromKey, toKey),
+      newId,
+    );
+    if (created.length > 0) {
+      payload.events.push(...created);
+      return writePayload(payload);
+    }
+    return payload;
+  });
 }
 
 async function update(
   mutator: (data: FamilyData) => void | Promise<void>,
 ): Promise<void> {
-  const data = await readPayload();
-  await mutator(data);
-  await writePayload(data);
+  await enqueueWrite(async () => {
+    const data = await readPayload();
+    await mutator(data);
+    await writePayload(data);
+  });
 }
 
 export async function cloudPutPerson(person: Person) {
@@ -184,21 +201,23 @@ export async function cloudEnsureScreenTimeDay(
   personId: string,
   date = todayKey(),
 ): Promise<ScreenTimeDay> {
-  const data = await readPayload();
-  const id = screenTimeDayId(personId, date);
-  const existing = data.screenTimeDays.find((d) => d.id === id);
-  if (existing) return existing;
-  const settings = data.screenTimeSettings.find((s) => s.personId === personId);
-  const day: ScreenTimeDay = {
-    id,
-    personId,
-    date,
-    allowanceMinutes: settings?.dailyMinutes ?? 45,
-    usedSeconds: 0,
-  };
-  data.screenTimeDays.push(day);
-  await writePayload(data);
-  return day;
+  return enqueueWrite(async () => {
+    const data = await readPayload();
+    const id = screenTimeDayId(personId, date);
+    const existing = data.screenTimeDays.find((d) => d.id === id);
+    if (existing) return existing;
+    const settings = data.screenTimeSettings.find((s) => s.personId === personId);
+    const day: ScreenTimeDay = {
+      id,
+      personId,
+      date,
+      allowanceMinutes: settings?.dailyMinutes ?? 45,
+      usedSeconds: 0,
+    };
+    data.screenTimeDays.push(day);
+    await writePayload(data);
+    return day;
+  });
 }
 
 export async function cloudPutRoutine(routine: Routine) {
@@ -230,19 +249,21 @@ export async function cloudEnsureRoutineProgress(
   routineId: string,
   date = todayKey(),
 ): Promise<RoutineDayProgress> {
-  const data = await readPayload();
-  const id = routineProgressId(routineId, date);
-  const existing = data.routineProgress.find((p) => p.id === id);
-  if (existing) return existing;
-  const progress: RoutineDayProgress = {
-    id,
-    routineId,
-    date,
-    completedStepIds: [],
-  };
-  data.routineProgress.push(progress);
-  await writePayload(data);
-  return progress;
+  return enqueueWrite(async () => {
+    const data = await readPayload();
+    const id = routineProgressId(routineId, date);
+    const existing = data.routineProgress.find((p) => p.id === id);
+    if (existing) return existing;
+    const progress: RoutineDayProgress = {
+      id,
+      routineId,
+      date,
+      completedStepIds: [],
+    };
+    data.routineProgress.push(progress);
+    await writePayload(data);
+    return progress;
+  });
 }
 
 export async function cloudPutRecurringTemplate(template: RecurringTemplate) {

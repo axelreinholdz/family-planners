@@ -17,7 +17,6 @@ import {
   deleteRecurringTemplate as dbDeleteRecurringTemplate,
   deleteRoutine as dbDeleteRoutine,
   deleteTodo as dbDeleteTodo,
-  ensureRoutineProgress,
   ensureScreenTimeDay,
   loadAll,
   newId,
@@ -33,7 +32,12 @@ import {
   saveDinnerMenu,
 } from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
-import { EBBE_ID, SEED_DINNERS } from "@/lib/seed";
+import {
+  EBBE_ID,
+  routineProgressId,
+  screenTimeDayId,
+  SEED_DINNERS,
+} from "@/lib/seed";
 import { foldActiveSession } from "@/lib/screenTime";
 import type {
   DinnerPlan,
@@ -277,10 +281,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       await putScreenTimeSettings(settings);
       const today = await ensureScreenTimeDay(settings.personId, todayKey());
       if (!today.activeStartedAt && today.usedSeconds === 0) {
-        await putScreenTimeDay({
-          ...today,
-          allowanceMinutes: settings.dailyMinutes,
+        const next = { ...today, allowanceMinutes: settings.dailyMinutes };
+        setScreenTimeDays((prev) => {
+          const others = prev.filter((row) => row.id !== next.id);
+          return [...others, next];
         });
+        await putScreenTimeDay(next);
       }
       await refresh();
     },
@@ -293,36 +299,103 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
         (row) => row.personId === personId,
       );
       if (settings && !settings.enabled) return;
-      let day = await ensureScreenTimeDay(personId, todayKey());
-      if (day.activeStartedAt) return;
-      if (day.allowanceMinutes * 60 - day.usedSeconds <= 0) return;
-      day = { ...day, activeStartedAt: new Date().toISOString() };
-      await putScreenTimeDay(day);
-      await refresh();
+
+      const date = todayKey();
+      const id = screenTimeDayId(personId, date);
+      const existing = screenTimeDays.find((row) => row.id === id);
+      const base: ScreenTimeDay = existing ?? {
+        id,
+        personId,
+        date,
+        allowanceMinutes: settings?.dailyMinutes ?? 45,
+        usedSeconds: 0,
+      };
+      if (base.activeStartedAt) return;
+      if (base.allowanceMinutes * 60 - base.usedSeconds <= 0) return;
+
+      const next: ScreenTimeDay = {
+        ...base,
+        activeStartedAt: new Date().toISOString(),
+      };
+      setScreenTimeDays((prev) => {
+        const others = prev.filter((row) => row.id !== id);
+        return [...others, next];
+      });
+      try {
+        await putScreenTimeDay(next);
+      } catch {
+        await refresh();
+      }
     },
-    [refresh, screenTimeSettings],
+    [refresh, screenTimeDays, screenTimeSettings],
   );
 
   const stopScreenTime = useCallback(
     async (personId: string) => {
-      const day = await ensureScreenTimeDay(personId, todayKey());
-      if (!day.activeStartedAt) return;
-      await putScreenTimeDay(foldActiveSession(day));
-      await refresh();
+      const date = todayKey();
+      const id = screenTimeDayId(personId, date);
+      const existing = screenTimeDays.find((row) => row.id === id);
+      if (!existing?.activeStartedAt) {
+        // Fall back to storage if local state is stale.
+        const day = await ensureScreenTimeDay(personId, date);
+        if (!day.activeStartedAt) return;
+        const next = foldActiveSession(day);
+        setScreenTimeDays((prev) => {
+          const others = prev.filter((row) => row.id !== id);
+          return [...others, next];
+        });
+        try {
+          await putScreenTimeDay(next);
+        } catch {
+          await refresh();
+        }
+        return;
+      }
+
+      const next = foldActiveSession(existing);
+      setScreenTimeDays((prev) => {
+        const others = prev.filter((row) => row.id !== id);
+        return [...others, next];
+      });
+      try {
+        await putScreenTimeDay(next);
+      } catch {
+        await refresh();
+      }
     },
-    [refresh],
+    [refresh, screenTimeDays],
   );
 
   const addScreenTimeBonus = useCallback(
     async (personId: string, minutes: number) => {
-      const day = await ensureScreenTimeDay(personId, todayKey());
-      await putScreenTimeDay({
-        ...day,
-        allowanceMinutes: day.allowanceMinutes + minutes,
+      const date = todayKey();
+      const id = screenTimeDayId(personId, date);
+      const existing = screenTimeDays.find((row) => row.id === id);
+      const settings = screenTimeSettings.find(
+        (row) => row.personId === personId,
+      );
+      const base: ScreenTimeDay = existing ?? {
+        id,
+        personId,
+        date,
+        allowanceMinutes: settings?.dailyMinutes ?? 45,
+        usedSeconds: 0,
+      };
+      const next: ScreenTimeDay = {
+        ...base,
+        allowanceMinutes: base.allowanceMinutes + minutes,
+      };
+      setScreenTimeDays((prev) => {
+        const others = prev.filter((row) => row.id !== id);
+        return [...others, next];
       });
-      await refresh();
+      try {
+        await putScreenTimeDay(next);
+      } catch {
+        await refresh();
+      }
     },
-    [refresh],
+    [refresh, screenTimeDays, screenTimeSettings],
   );
 
   const resetScreenTimeToday = useCallback(
@@ -334,29 +407,57 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
         dailyMinutes: 45,
         enabled: true,
       };
-      const day = await ensureScreenTimeDay(personId, todayKey());
-      await putScreenTimeDay({
-        ...day,
+      const date = todayKey();
+      const id = screenTimeDayId(personId, date);
+      const next: ScreenTimeDay = {
+        id,
+        personId,
+        date,
         allowanceMinutes: settings.dailyMinutes,
         usedSeconds: 0,
         activeStartedAt: undefined,
+      };
+      setScreenTimeDays((prev) => {
+        const others = prev.filter((row) => row.id !== id);
+        return [...others, next];
       });
-      await refresh();
+      try {
+        await putScreenTimeDay(next);
+      } catch {
+        await refresh();
+      }
     },
     [refresh, screenTimeSettings],
   );
 
   const toggleRoutineStep = useCallback(
     async (routineId: string, stepId: string) => {
-      const progress = await ensureRoutineProgress(routineId, todayKey());
-      const has = progress.completedStepIds.includes(stepId);
-      const completedStepIds = has
-        ? progress.completedStepIds.filter((id) => id !== stepId)
-        : [...progress.completedStepIds, stepId];
-      await putRoutineProgress({ ...progress, completedStepIds });
-      await refresh();
+      const date = todayKey();
+      const id = routineProgressId(routineId, date);
+      const existing = routineProgress.find((row) => row.id === id) ?? {
+        id,
+        routineId,
+        date,
+        completedStepIds: [] as string[],
+      };
+      const has = existing.completedStepIds.includes(stepId);
+      const next: RoutineDayProgress = {
+        ...existing,
+        completedStepIds: has
+          ? existing.completedStepIds.filter((sid) => sid !== stepId)
+          : [...existing.completedStepIds, stepId],
+      };
+      setRoutineProgress((prev) => {
+        const others = prev.filter((row) => row.id !== id);
+        return [...others, next];
+      });
+      try {
+        await putRoutineProgress(next);
+      } catch {
+        await refresh();
+      }
     },
-    [refresh],
+    [refresh, routineProgress],
   );
 
   const saveRoutine = useCallback(

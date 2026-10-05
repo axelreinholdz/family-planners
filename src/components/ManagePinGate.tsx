@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { getManagePin, verifyManagePin } from "@/lib/managePin";
+import { getManagePinLength, verifyManagePin } from "@/lib/managePin";
 
 interface ManagePinGateProps {
   onUnlock: () => void;
@@ -9,26 +9,32 @@ interface ManagePinGateProps {
 }
 
 export function ManagePinGate({ onUnlock, onCancel }: ManagePinGateProps) {
-  const pinLength = getManagePin().length;
+  const pinLength = getManagePinLength();
   const [digits, setDigits] = useState("");
   const [error, setError] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const tryUnlock = (value: string) => {
-    if (verifyManagePin(value)) {
-      onUnlock();
-      return;
+  const tryUnlock = async (value: string) => {
+    setBusy(true);
+    try {
+      if (await verifyManagePin(value)) {
+        onUnlock();
+        return;
+      }
+      setError(true);
+      window.setTimeout(() => setDigits(""), 350);
+    } finally {
+      setBusy(false);
     }
-    setError(true);
-    window.setTimeout(() => setDigits(""), 350);
   };
 
   const press = (digit: string) => {
-    if (digits.length >= 6) return;
+    if (busy || digits.length >= 6) return;
     const next = digits + digit;
     setDigits(next);
     setError(false);
     if (next.length === pinLength) {
-      tryUnlock(next);
+      void tryUnlock(next);
     }
   };
 

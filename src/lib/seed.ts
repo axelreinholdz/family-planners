@@ -82,6 +82,10 @@ export const SEED_ROUTINES: Routine[] = [
     id: ROUTINE_EBBE_MORNING,
     personId: EBBE_ID,
     title: "Morgon",
+    weekdays: [0, 1, 2, 3, 4],
+    showFrom: "05:00",
+    showUntil: "11:00",
+    sortOrder: 0,
     steps: [
       {
         id: "step-clothes",
@@ -113,6 +117,10 @@ export const SEED_ROUTINES: Routine[] = [
     id: ROUTINE_LILLE_MORNING,
     personId: LILLE_ID,
     title: "Morgon",
+    weekdays: [0, 1, 2, 3, 4],
+    showFrom: "05:00",
+    showUntil: "11:00",
+    sortOrder: 0,
     steps: [
       {
         id: "step-lille-clothes",

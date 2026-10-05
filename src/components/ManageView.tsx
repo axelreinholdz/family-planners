@@ -5,10 +5,12 @@ import { useRouter } from "next/navigation";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { IconPicker } from "@/components/IconPicker";
 import { ManageDinners } from "@/components/ManageDinners";
+import { ManageModal } from "@/components/ManageModal";
 import { ManageRecurring } from "@/components/ManageRecurring";
 import { ManageRoutines } from "@/components/ManageRoutines";
 import { ManageScreenTime } from "@/components/ManageScreenTime";
 import { MicButton } from "@/components/MicButton";
+import { defaultPersonId, PersonTabs } from "@/components/PersonTabs";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import {
   addDays,
@@ -61,7 +63,11 @@ export function ManageView({ onBack }: ManageViewProps) {
 
   const [tab, setTab] = useState<Tab>("activities");
   const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
-  const [editing, setEditing] = useState<Event | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterPersonId, setFilterPersonId] = useState(() =>
+    defaultPersonId(people),
+  );
 
   const [personId, setPersonId] = useState("");
   const [date, setDate] = useState(toDateKey(new Date()));
@@ -72,28 +78,28 @@ export function ManageView({ onBack }: ManageViewProps) {
   const [startTime, setStartTime] = useState("16:00");
   const [endTime, setEndTime] = useState("17:00");
 
+  const activeFilterId = defaultPersonId(people, filterPersonId);
+  const filterPerson = people.find((p) => p.id === activeFilterId);
+
   const selectedPersonId =
     personId && people.some((p) => p.id === personId)
       ? personId
-      : (people.find((p) => p.role === "child")?.id ?? people[0]?.id ?? "");
+      : activeFilterId || people[0]?.id || "";
 
   const days = useMemo(() => weekDays(weekAnchor), [weekAnchor]);
 
   const weekEvents = useMemo(() => {
     const keys = new Set(days.map(toDateKey));
     return events
-      .filter((e) => keys.has(e.date))
-      .sort((a, b) => a.date.localeCompare(b.date) || a.title.localeCompare(b.title));
-  }, [events, days]);
+      .filter((e) => keys.has(e.date) && e.personId === activeFilterId)
+      .sort(
+        (a, b) =>
+          a.date.localeCompare(b.date) || a.title.localeCompare(b.title),
+      );
+  }, [events, days, activeFilterId]);
 
-  const personMap = useMemo(
-    () => Object.fromEntries(people.map((p) => [p.id, p])),
-    [people],
-  );
-
-  const resetForm = (nextPersonId?: string) => {
-    setEditing(null);
-    setPersonId(nextPersonId ?? people.find((p) => p.role === "child")?.id ?? people[0]?.id ?? "");
+  const resetCreateForm = () => {
+    setPersonId(activeFilterId || people[0]?.id || "");
     setDate(toDateKey(new Date()));
     setTitle("");
     setIconKey("preschool");
@@ -103,24 +109,15 @@ export function ManageView({ onBack }: ManageViewProps) {
     setEndTime("17:00");
   };
 
-  const startEdit = (event: Event) => {
-    setEditing(event);
-    setPersonId(event.personId);
-    setDate(event.date);
-    setTitle(event.title);
-    setIconKey(event.iconKey);
-    setEmoji(resolveActivityEmoji(event.iconKey, event.emoji));
-    setAllDay(event.allDay);
-    setStartTime(event.startTime ?? "16:00");
-    setEndTime(event.endTime ?? "17:00");
-    setTab("activities");
+  const closeCreate = () => {
+    setCreating(false);
+    resetCreateForm();
   };
 
-  const onSubmit = async (e: FormEvent) => {
+  const onCreate = async (e: FormEvent) => {
     e.preventDefault();
     if (!selectedPersonId || !title.trim()) return;
-
-    const payload = {
+    await createEvent({
       personId: selectedPersonId,
       date,
       title: title.trim(),
@@ -129,14 +126,8 @@ export function ManageView({ onBack }: ManageViewProps) {
       allDay,
       startTime: allDay ? undefined : startTime,
       endTime: allDay ? undefined : endTime,
-    };
-
-    if (editing) {
-      await saveEvent({ ...editing, ...payload });
-    } else {
-      await createEvent(payload);
-    }
-    resetForm(selectedPersonId);
+    });
+    closeCreate();
   };
 
   if (!ready) {
@@ -196,136 +187,12 @@ export function ManageView({ onBack }: ManageViewProps) {
       </nav>
 
       {tab === "activities" ? (
-        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[1.1fr_0.9fr]">
-          <form
-            onSubmit={onSubmit}
-            className="flex min-h-0 flex-col gap-3 overflow-y-auto rounded-3xl bg-white/80 p-4 shadow-sm ring-1 ring-black/5"
-          >
-            <h3 className="font-display text-xl font-bold">
-              {editing ? "Redigera aktivitet" : "Ny aktivitet"}
-            </h3>
-
-            <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-              Vem
-              <select
-                value={selectedPersonId}
-                onChange={(e) => setPersonId(e.target.value)}
-                className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
-              >
-                {people.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.avatar} {p.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-              Dag
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
-              />
-            </label>
-
-            <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-              Titel
-              <span className="flex gap-2">
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="t.ex. Förskola"
-                  className="tap-target min-w-0 flex-1 rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
-                />
-                <MicButton
-                  value={title}
-                  append
-                  onTranscript={setTitle}
-                  label="Tala in aktivitetstitel"
-                />
-              </span>
-            </label>
-
-            <fieldset>
-              <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
-                Ikon
-              </legend>
-              <IconPicker
-                category="activity"
-                value={emoji}
-                onChange={(icon) => {
-                  setIconKey(icon.key as IconKey);
-                  setEmoji(icon.emoji);
-                  if (
-                    !title ||
-                    ACTIVITY_ICONS.some((i) => i.label === title) ||
-                    title === "Egen"
-                  ) {
-                    if (icon.label !== "Egen") setTitle(icon.label);
-                  }
-                }}
-              />
-            </fieldset>
-
-            <label className="flex items-center gap-3 text-sm font-semibold text-[var(--ink)]">
-              <input
-                type="checkbox"
-                checked={allDay}
-                onChange={(e) => setAllDay(e.target.checked)}
-                className="h-5 w-5"
-              />
-              Heldag
-            </label>
-
-            {!allDay ? (
-              <div className="grid grid-cols-2 gap-3">
-                <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-                  Start
-                  <input
-                    type="time"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
-                  />
-                </label>
-                <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-                  Slut
-                  <input
-                    type="time"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                    className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
-                  />
-                </label>
-              </div>
-            ) : null}
-
-            <div className="mt-auto flex gap-2 pt-2">
-              {editing ? (
-                <button
-                  type="button"
-                  onClick={() => resetForm(selectedPersonId)}
-                  className="tap-target flex-1 rounded-xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-bold"
-                >
-                  Avbryt
-                </button>
-              ) : null}
-              <button
-                type="submit"
-                className="tap-target flex-1 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white"
-              >
-                {editing ? "Spara" : "Lägg till"}
-              </button>
-            </div>
-          </form>
-
-          <div className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-3xl bg-white/70 p-4 shadow-sm ring-1 ring-black/5">
-            <div className="flex items-center justify-between gap-2">
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="tap-target rounded-full bg-white px-3 py-1.5 text-sm font-semibold ring-1 ring-black/5"
+                className="tap-target rounded-full bg-white px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-black/5"
                 onClick={() => setWeekAnchor((d) => addDays(d, -7))}
               >
                 ←
@@ -335,62 +202,162 @@ export function ManageView({ onBack }: ManageViewProps) {
               </p>
               <button
                 type="button"
-                className="tap-target rounded-full bg-white px-3 py-1.5 text-sm font-semibold ring-1 ring-black/5"
+                className="tap-target rounded-full bg-white px-3 py-1.5 text-sm font-semibold shadow-sm ring-1 ring-black/5"
                 onClick={() => setWeekAnchor((d) => addDays(d, 7))}
               >
                 →
               </button>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                resetCreateForm();
+                setCreating(true);
+              }}
+              className="tap-target shrink-0 rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-white"
+            >
+              + Ny aktivitet
+            </button>
+          </div>
 
-            <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-              {weekEvents.length === 0 ? (
-                <li className="py-8 text-center text-sm text-[var(--ink-muted)]">
-                  Inga aktiviteter den här veckan.
-                </li>
-              ) : (
-                weekEvents.map((event) => {
-                  const person = personMap[event.personId] as Person | undefined;
-                  const day = days.find((d) => toDateKey(d) === event.date);
-                  return (
-                    <li
-                      key={event.id}
-                      className="flex items-center gap-3 rounded-2xl bg-[var(--surface-soft)] px-3 py-2"
-                    >
+          <PersonTabs
+            people={people}
+            selectedId={activeFilterId}
+            roles={["child", "parent"]}
+            label="Välj person"
+            onSelect={(id) => {
+              setFilterPersonId(id);
+              setEditingId(null);
+            }}
+          />
+
+          <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+            {weekEvents.length === 0 ? (
+              <li className="rounded-3xl bg-white/80 px-4 py-8 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
+                Inga aktiviteter för {filterPerson?.name ?? "denna person"} den
+                här veckan.
+              </li>
+            ) : (
+              weekEvents.map((event) => {
+                const day = days.find((d) => toDateKey(d) === event.date);
+                const isEditing = editingId === event.id;
+                return (
+                  <li
+                    key={event.id}
+                    className="rounded-3xl bg-white/80 shadow-sm ring-1 ring-black/5"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-3">
                       <ActivityIcon
                         iconKey={event.iconKey}
                         emoji={event.emoji}
                         size="md"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-bold text-[var(--ink)]">
+                        <p className="truncate font-display text-lg font-bold text-[var(--ink)]">
                           {event.title}
                         </p>
-                        <p className="text-xs font-medium text-[var(--ink-muted)]">
-                          {person ? `${person.avatar} ${person.name}` : "?"}
-                          {day ? ` · ${dayLabel(day)}` : ""}
-                          {event.startTime ? ` · ${event.startTime}` : ""}
+                        <p className="truncate text-sm text-[var(--ink-muted)]">
+                          {day ? dayLabel(day) : event.date}
+                          {event.startTime
+                            ? ` · ${event.startTime}`
+                            : event.allDay
+                              ? " · Heldag"
+                              : ""}
                         </p>
                       </div>
                       <button
                         type="button"
-                        onClick={() => startEdit(event)}
-                        className="tap-target rounded-full px-3 py-1 text-sm font-bold text-[var(--accent-deep)]"
+                        onClick={() =>
+                          setEditingId((id) =>
+                            id === event.id ? null : event.id,
+                          )
+                        }
+                        className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--accent-deep)]"
                       >
-                        Ändra
+                        {isEditing ? "Stäng" : "Ändra"}
                       </button>
                       <button
                         type="button"
                         onClick={() => void removeEvent(event.id)}
-                        className="tap-target rounded-full px-3 py-1 text-sm font-bold text-red-700"
+                        className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-red-700"
                       >
                         Ta bort
                       </button>
-                    </li>
-                  );
-                })
-              )}
-            </ul>
-          </div>
+                    </div>
+                    {isEditing ? (
+                      <div className="border-t border-black/5 px-4 py-4">
+                        <ActivityEditor
+                          people={people}
+                          event={event}
+                          onCancel={() => setEditingId(null)}
+                          onSave={async (next) => {
+                            await saveEvent(next);
+                            setEditingId(null);
+                          }}
+                        />
+                      </div>
+                    ) : null}
+                  </li>
+                );
+              })
+            )}
+          </ul>
+
+          {creating ? (
+            <ManageModal
+              title="Ny aktivitet"
+              description="Lägg till en engångsaktivitet för veckan."
+              onClose={closeCreate}
+            >
+              <form
+                onSubmit={(e) => void onCreate(e)}
+                className="flex flex-col gap-3"
+              >
+                <ActivityFormFields
+                  people={people}
+                  personId={selectedPersonId}
+                  onPersonId={setPersonId}
+                  date={date}
+                  onDate={setDate}
+                  title={title}
+                  onTitle={setTitle}
+                  emoji={emoji}
+                  onIcon={(key, nextEmoji, label) => {
+                    setIconKey(key);
+                    setEmoji(nextEmoji);
+                    if (
+                      !title ||
+                      ACTIVITY_ICONS.some((i) => i.label === title) ||
+                      title === "Egen"
+                    ) {
+                      if (label !== "Egen") setTitle(label);
+                    }
+                  }}
+                  allDay={allDay}
+                  onAllDay={setAllDay}
+                  startTime={startTime}
+                  onStartTime={setStartTime}
+                  endTime={endTime}
+                  onEndTime={setEndTime}
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeCreate}
+                    className="tap-target flex-1 rounded-xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-bold"
+                  >
+                    Avbryt
+                  </button>
+                  <button
+                    type="submit"
+                    className="tap-target flex-1 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white"
+                  >
+                    Lägg till
+                  </button>
+                </div>
+              </form>
+            </ManageModal>
+          ) : null}
         </div>
       ) : null}
 
@@ -403,14 +370,22 @@ export function ManageView({ onBack }: ManageViewProps) {
       {tab === "screentime" ? <ManageScreenTime /> : null}
 
       {tab === "people" ? (
-        <div className="grid gap-3 overflow-y-auto sm:grid-cols-2">
-          {people.map((person) => (
-            <PersonEditor
-              key={person.id}
-              person={person}
-              onSave={(next) => void savePerson(next)}
-            />
-          ))}
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          <div>
+            <h3 className="font-display text-xl font-bold">Personer</h3>
+            <p className="text-sm text-[var(--ink-muted)]">
+              Ändra namn, ikon och färg.
+            </p>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {people.map((person) => (
+              <PersonRow
+                key={person.id}
+                person={person}
+                onSave={(next) => void savePerson(next)}
+              />
+            ))}
+          </ul>
         </div>
       ) : null}
 
@@ -441,7 +416,9 @@ function SettingsPanel({ onReset }: { onReset: () => void }) {
       <div className="rounded-2xl bg-[var(--surface-soft)] p-4">
         <h4 className="font-display text-lg font-bold">PIN till Hantera</h4>
         <p className="mt-1 text-sm text-[var(--ink-muted)]">
-          Skyddar föräldraläget på den här enheten.
+          {cloud
+            ? "Skyddar föräldraläget för ditt konto (synkas mellan enheter). Soft gate — inte hög säkerhet."
+            : "Skyddar föräldraläget på den här enheten."}
           {isDefaultManagePin() ? " Standardkod: 1234." : ""}
         </p>
         <form
@@ -450,25 +427,36 @@ function SettingsPanel({ onReset }: { onReset: () => void }) {
             e.preventDefault();
             setPinMessage(null);
             setPinError(null);
-            try {
-              if (!verifyManagePin(currentPin)) {
-                setPinError("Nuvarande PIN är fel");
-                return;
+            void (async () => {
+              try {
+                if (!(await verifyManagePin(currentPin))) {
+                  setPinError("Nuvarande PIN är fel");
+                  return;
+                }
+                if (newPin !== confirmPin) {
+                  setPinError("Nya PIN-koderna matchar inte");
+                  return;
+                }
+                await setManagePin(newPin);
+                setCurrentPin("");
+                setNewPin("");
+                setConfirmPin("");
+                setPinMessage(
+                  cloud ? "PIN sparad och synkad" : "PIN sparad",
+                );
+              } catch (err) {
+                const message =
+                  err instanceof Error
+                    ? err.message
+                    : err &&
+                        typeof err === "object" &&
+                        "message" in err &&
+                        typeof (err as { message: unknown }).message === "string"
+                      ? (err as { message: string }).message
+                      : "Kunde inte spara PIN";
+                setPinError(message);
               }
-              if (newPin !== confirmPin) {
-                setPinError("Nya PIN-koderna matchar inte");
-                return;
-              }
-              setManagePin(newPin);
-              setCurrentPin("");
-              setNewPin("");
-              setConfirmPin("");
-              setPinMessage("PIN sparad");
-            } catch (err) {
-              setPinError(
-                err instanceof Error ? err.message : "Kunde inte spara PIN",
-              );
-            }
+            })();
           }}
         >
           <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
@@ -593,72 +581,311 @@ function SettingsPanel({ onReset }: { onReset: () => void }) {
   );
 }
 
-function PersonEditor({
+function ActivityFormFields({
+  people,
+  personId,
+  onPersonId,
+  date,
+  onDate,
+  title,
+  onTitle,
+  emoji,
+  onIcon,
+  allDay,
+  onAllDay,
+  startTime,
+  onStartTime,
+  endTime,
+  onEndTime,
+}: {
+  people: Person[];
+  personId: string;
+  onPersonId: (id: string) => void;
+  date: string;
+  onDate: (value: string) => void;
+  title: string;
+  onTitle: (value: string) => void;
+  emoji: string;
+  onIcon: (key: IconKey, emoji: string, label: string) => void;
+  allDay: boolean;
+  onAllDay: (value: boolean) => void;
+  startTime: string;
+  onStartTime: (value: string) => void;
+  endTime: string;
+  onEndTime: (value: string) => void;
+}) {
+  return (
+    <>
+      <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+        Vem
+        <select
+          value={personId}
+          onChange={(e) => onPersonId(e.target.value)}
+          className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
+        >
+          {people.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.avatar} {p.name}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+        Dag
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => onDate(e.target.value)}
+          className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
+        />
+      </label>
+
+      <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+        Titel
+        <span className="flex gap-2">
+          <input
+            value={title}
+            onChange={(e) => onTitle(e.target.value)}
+            placeholder="t.ex. Förskola"
+            className="tap-target min-w-0 flex-1 rounded-xl border border-black/10 bg-white px-3 py-2 text-base text-[var(--ink)]"
+          />
+          <MicButton
+            value={title}
+            append
+            onTranscript={onTitle}
+            label="Tala in aktivitetstitel"
+          />
+        </span>
+      </label>
+
+      <fieldset>
+        <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
+          Ikon
+        </legend>
+        <IconPicker
+          category="activity"
+          value={emoji}
+          onChange={(icon) =>
+            onIcon(icon.key as IconKey, icon.emoji, icon.label)
+          }
+        />
+      </fieldset>
+
+      <label className="flex items-center gap-3 text-sm font-semibold text-[var(--ink)]">
+        <input
+          type="checkbox"
+          checked={allDay}
+          onChange={(e) => onAllDay(e.target.checked)}
+          className="h-5 w-5"
+        />
+        Heldag
+      </label>
+
+      {!allDay ? (
+        <div className="grid grid-cols-2 gap-3">
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Start
+            <input
+              type="time"
+              value={startTime}
+              onChange={(e) => onStartTime(e.target.value)}
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
+            />
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Slut
+            <input
+              type="time"
+              value={endTime}
+              onChange={(e) => onEndTime(e.target.value)}
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
+            />
+          </label>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function ActivityEditor({
+  people,
+  event,
+  onSave,
+  onCancel,
+}: {
+  people: Person[];
+  event: Event;
+  onSave: (event: Event) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [personId, setPersonId] = useState(event.personId);
+  const [date, setDate] = useState(event.date);
+  const [title, setTitle] = useState(event.title);
+  const [iconKey, setIconKey] = useState<IconKey>(event.iconKey);
+  const [emoji, setEmoji] = useState(() =>
+    resolveActivityEmoji(event.iconKey, event.emoji),
+  );
+  const [allDay, setAllDay] = useState(event.allDay);
+  const [startTime, setStartTime] = useState(event.startTime ?? "16:00");
+  const [endTime, setEndTime] = useState(event.endTime ?? "17:00");
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!personId || !title.trim()) return;
+        void onSave({
+          ...event,
+          personId,
+          date,
+          title: title.trim(),
+          iconKey,
+          emoji,
+          allDay,
+          startTime: allDay ? undefined : startTime,
+          endTime: allDay ? undefined : endTime,
+        });
+      }}
+    >
+      <ActivityFormFields
+        people={people}
+        personId={personId}
+        onPersonId={setPersonId}
+        date={date}
+        onDate={setDate}
+        title={title}
+        onTitle={setTitle}
+        emoji={emoji}
+        onIcon={(key, nextEmoji, label) => {
+          setIconKey(key);
+          setEmoji(nextEmoji);
+          if (
+            !title ||
+            ACTIVITY_ICONS.some((i) => i.label === title) ||
+            title === "Egen"
+          ) {
+            if (label !== "Egen") setTitle(label);
+          }
+        }}
+        allDay={allDay}
+        onAllDay={setAllDay}
+        startTime={startTime}
+        onStartTime={setStartTime}
+        endTime={endTime}
+        onEndTime={setEndTime}
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="tap-target flex-1 rounded-xl bg-[var(--surface-soft)] px-4 py-3 text-sm font-bold"
+        >
+          Avbryt
+        </button>
+        <button
+          type="submit"
+          className="tap-target flex-1 rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white"
+        >
+          Spara
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function PersonRow({
   person,
   onSave,
 }: {
   person: Person;
   onSave: (person: Person) => void;
 }) {
+  const [open, setOpen] = useState(false);
   const [name, setName] = useState(person.name);
   const [color, setColor] = useState(person.color);
   const [avatar, setAvatar] = useState(person.avatar);
 
   return (
-    <form
-      className="flex flex-col gap-3 rounded-3xl bg-white/80 p-4 shadow-sm ring-1 ring-black/5"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave({ ...person, name: name.trim() || person.name, color, avatar });
-      }}
-    >
-      <div className="flex items-center gap-3">
+    <li className="rounded-3xl bg-white/80 shadow-sm ring-1 ring-black/5">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
         <span
-          className="flex h-14 w-14 items-center justify-center rounded-full text-3xl"
-          style={{ backgroundColor: `${color}33` }}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-2xl"
+          style={{ backgroundColor: `${person.color}33` }}
         >
-          {avatar}
+          {person.avatar}
         </span>
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-[var(--ink-muted)]">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-lg font-bold text-[var(--ink)]">
+            {person.name}
+          </p>
+          <p className="text-sm text-[var(--ink-muted)]">
             {person.role === "child" ? "Barn" : "Förälder"}
           </p>
-          <p className="font-display text-lg font-bold">{person.name}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            setName(person.name);
+            setColor(person.color);
+            setAvatar(person.avatar);
+            setOpen((value) => !value);
+          }}
+          className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--accent-deep)]"
+        >
+          {open ? "Stäng" : "Ändra"}
+        </button>
       </div>
-      <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-        Namn
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
-        />
-      </label>
-      <fieldset>
-        <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
-          Ikon
-        </legend>
-        <IconPicker
-          category="person"
-          value={avatar}
-          onChange={(icon) => setAvatar(icon.emoji)}
-        />
-      </fieldset>
-      <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-        Färg
-        <input
-          type="color"
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-          className="h-12 w-full cursor-pointer rounded-xl border border-black/10 bg-white"
-        />
-      </label>
-      <button
-        type="submit"
-        className="tap-target rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white"
-      >
-        Spara person
-      </button>
-    </form>
+      {open ? (
+        <form
+          className="flex flex-col gap-3 border-t border-black/5 px-4 py-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSave({
+              ...person,
+              name: name.trim() || person.name,
+              color,
+              avatar,
+            });
+            setOpen(false);
+          }}
+        >
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Namn
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
+            />
+          </label>
+          <fieldset>
+            <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
+              Ikon
+            </legend>
+            <IconPicker
+              category="person"
+              value={avatar}
+              onChange={(icon) => setAvatar(icon.emoji)}
+            />
+          </fieldset>
+          <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+            Färg
+            <input
+              type="color"
+              value={color}
+              onChange={(e) => setColor(e.target.value)}
+              className="h-12 w-full cursor-pointer rounded-xl border border-black/10 bg-white"
+            />
+          </label>
+          <button
+            type="submit"
+            className="tap-target rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white"
+          >
+            Spara person
+          </button>
+        </form>
+      ) : null}
+    </li>
   );
 }

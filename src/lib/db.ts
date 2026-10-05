@@ -7,6 +7,7 @@ import {
   reconcileTemplateEvents,
   weekAnchorsBetween,
 } from "./recurring";
+import { compareRoutines, normalizeRoutine } from "./routines";
 import {
   buildSeedEvents,
   buildSeedTodos,
@@ -381,7 +382,7 @@ export async function loadAll(): Promise<{
   people.sort((a, b) => a.sortOrder - b.sortOrder);
   todos.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   dinners.sort((a, b) => a.weekday - b.weekday);
-  routines.sort((a, b) => a.title.localeCompare(b.title, "sv"));
+  routines.sort(compareRoutines);
   recurringTemplates.sort((a, b) => a.title.localeCompare(b.title, "sv"));
   return {
     people,
@@ -390,7 +391,7 @@ export async function loadAll(): Promise<{
     dinners,
     screenTimeSettings,
     screenTimeDays,
-    routines,
+    routines: routines.map(normalizeRoutine),
     routineProgress,
     recurringTemplates,
   };

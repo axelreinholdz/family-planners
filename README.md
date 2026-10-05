@@ -22,7 +22,8 @@ With Supabase configured, data syncs across devices (email/password or magic-lin
 
 2. **Run the schema** in the Supabase SQL Editor (in order):  
    - `supabase/migrations/001_family_planner.sql`  
-   - `supabase/migrations/002_fix_create_family.sql`
+   - `supabase/migrations/002_fix_create_family.sql`  
+   - `supabase/migrations/003_user_settings.sql` (per-user Hantera PIN hash)
 
 3. **Auth URL config** in Supabase → Authentication → URL configuration:  
    - Site URL: `http://localhost:3000` (and production URL)  
@@ -31,6 +32,8 @@ With Supabase configured, data syncs across devices (email/password or magic-lin
 4. In Supabase → Authentication → Providers → **Email**: enable Email provider (password sign-in is on by default). Optionally turn off “Confirm email” while testing so new accounts work without inbox access.
 
 5. Restart `npm run dev`. Log in (or create account) with email/password → create a family on the first device → use the invite code under **Hantera → Inställningar** on phone/other browsers.
+
+**Hantera PIN:** Each signed-in user has their own PIN (synced via `user_settings`). It is stored as a SHA-256 hash (soft parental gate, not high security). Default is `1234` until changed under Inställningar. Without login, the PIN stays device-local in localStorage.
 
 ## Develop
 
