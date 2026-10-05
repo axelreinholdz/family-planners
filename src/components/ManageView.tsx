@@ -34,7 +34,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { clearCloudCache } from "@/lib/supabase/cloud-db";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
-import type { Event, IconKey, Person } from "@/lib/types";
+import type { Event, IconKey, Person, PersonRole } from "@/lib/types";
 
 interface ManageViewProps {
   onBack: () => void;
@@ -58,12 +58,15 @@ export function ManageView({ onBack }: ManageViewProps) {
     saveEvent,
     removeEvent,
     savePerson,
+    createPerson,
+    removePerson,
     resetData,
   } = useFamilyStore();
 
   const [tab, setTab] = useState<Tab>("activities");
   const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
   const [creating, setCreating] = useState(false);
+  const [creatingPerson, setCreatingPerson] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterPersonId, setFilterPersonId] = useState(() =>
     defaultPersonId(people),
@@ -77,6 +80,13 @@ export function ManageView({ onBack }: ManageViewProps) {
   const [allDay, setAllDay] = useState(true);
   const [startTime, setStartTime] = useState("16:00");
   const [endTime, setEndTime] = useState("17:00");
+
+  const [newPersonName, setNewPersonName] = useState("");
+  const [newPersonRole, setNewPersonRole] = useState<PersonRole>("child");
+  const [newPersonColor, setNewPersonColor] = useState("#2A9D8F");
+  const [newPersonAvatar, setNewPersonAvatar] = useState(() =>
+    getIconEmoji("boy"),
+  );
 
   const activeFilterId = defaultPersonId(people, filterPersonId);
   const filterPerson = people.find((p) => p.id === activeFilterId);
@@ -112,6 +122,30 @@ export function ManageView({ onBack }: ManageViewProps) {
   const closeCreate = () => {
     setCreating(false);
     resetCreateForm();
+  };
+
+  const resetCreatePersonForm = () => {
+    setNewPersonName("");
+    setNewPersonRole("child");
+    setNewPersonColor("#2A9D8F");
+    setNewPersonAvatar(getIconEmoji("boy"));
+  };
+
+  const closeCreatePerson = () => {
+    setCreatingPerson(false);
+    resetCreatePersonForm();
+  };
+
+  const onCreatePerson = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!newPersonName.trim()) return;
+    await createPerson({
+      name: newPersonName,
+      role: newPersonRole,
+      color: newPersonColor,
+      avatar: newPersonAvatar,
+    });
+    closeCreatePerson();
   };
 
   const onCreate = async (e: FormEvent) => {
@@ -371,21 +405,123 @@ export function ManageView({ onBack }: ManageViewProps) {
 
       {tab === "people" ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-          <div>
-            <h3 className="font-display text-xl font-bold">Personer</h3>
-            <p className="text-sm text-[var(--ink-muted)]">
-              Ändra namn, ikon och färg.
-            </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-display text-xl font-bold">Personer</h3>
+              <p className="text-sm text-[var(--ink-muted)]">
+                Lägg till, ta bort och ändra typ (förälder eller barn).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                resetCreatePersonForm();
+                setCreatingPerson(true);
+              }}
+              className="tap-target shrink-0 rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-white"
+            >
+              + Ny person
+            </button>
           </div>
           <ul className="flex flex-col gap-2">
-            {people.map((person) => (
-              <PersonRow
-                key={person.id}
-                person={person}
-                onSave={(next) => void savePerson(next)}
-              />
-            ))}
+            {people
+              .slice()
+              .sort((a, b) => a.sortOrder - b.sortOrder)
+              .map((person) => (
+                <PersonRow
+                  key={person.id}
+                  person={person}
+                  canDelete={people.length > 1}
+                  onSave={(next) => void savePerson(next)}
+                  onDelete={() => {
+                    if (
+                      !window.confirm(
+                        `Ta bort ${person.name}? Aktiviteter, rutiner och skärmtid för personen raderas.`,
+                      )
+                    ) {
+                      return;
+                    }
+                    void removePerson(person.id);
+                  }}
+                />
+              ))}
           </ul>
+
+          {creatingPerson ? (
+            <ManageModal
+              title="Ny person"
+              description="Välj namn, typ, ikon och färg."
+              onClose={closeCreatePerson}
+            >
+              <form
+                onSubmit={(e) => void onCreatePerson(e)}
+                className="flex flex-col gap-3"
+              >
+                <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+                  Namn
+                  <input
+                    value={newPersonName}
+                    onChange={(e) => setNewPersonName(e.target.value)}
+                    className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
+                    placeholder="T.ex. Ebbe"
+                    autoFocus
+                  />
+                </label>
+                <fieldset>
+                  <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
+                    Typ
+                  </legend>
+                  <div className="flex gap-2">
+                    {(
+                      [
+                        ["child", "Barn"],
+                        ["parent", "Förälder"],
+                      ] as const
+                    ).map(([role, label]) => (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => setNewPersonRole(role)}
+                        className={`tap-target flex-1 rounded-xl px-3 py-2.5 text-sm font-bold ${
+                          newPersonRole === role
+                            ? "bg-[var(--accent)] text-white"
+                            : "bg-[var(--surface-soft)] text-[var(--ink-muted)]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
+                    Ikon
+                  </legend>
+                  <IconPicker
+                    category="person"
+                    value={newPersonAvatar}
+                    onChange={(icon) => setNewPersonAvatar(icon.emoji)}
+                  />
+                </fieldset>
+                <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
+                  Färg
+                  <input
+                    type="color"
+                    value={newPersonColor}
+                    onChange={(e) => setNewPersonColor(e.target.value)}
+                    className="h-12 w-full cursor-pointer rounded-xl border border-black/10 bg-white"
+                  />
+                </label>
+                <button
+                  type="submit"
+                  disabled={!newPersonName.trim()}
+                  className="tap-target rounded-xl bg-[var(--accent)] px-4 py-3 text-sm font-bold text-white disabled:opacity-40"
+                >
+                  Lägg till person
+                </button>
+              </form>
+            </ManageModal>
+          ) : null}
         </div>
       ) : null}
 
@@ -797,13 +933,18 @@ function ActivityEditor({
 
 function PersonRow({
   person,
+  canDelete,
   onSave,
+  onDelete,
 }: {
   person: Person;
+  canDelete: boolean;
   onSave: (person: Person) => void;
+  onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(person.name);
+  const [role, setRole] = useState<PersonRole>(person.role);
   const [color, setColor] = useState(person.color);
   const [avatar, setAvatar] = useState(person.avatar);
 
@@ -828,6 +969,7 @@ function PersonRow({
           type="button"
           onClick={() => {
             setName(person.name);
+            setRole(person.role);
             setColor(person.color);
             setAvatar(person.avatar);
             setOpen((value) => !value);
@@ -836,6 +978,15 @@ function PersonRow({
         >
           {open ? "Stäng" : "Ändra"}
         </button>
+        {canDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-red-700"
+          >
+            Ta bort
+          </button>
+        ) : null}
       </div>
       {open ? (
         <form
@@ -845,6 +996,7 @@ function PersonRow({
             onSave({
               ...person,
               name: name.trim() || person.name,
+              role,
               color,
               avatar,
             });
@@ -859,6 +1011,32 @@ function PersonRow({
               className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
             />
           </label>
+          <fieldset>
+            <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
+              Typ
+            </legend>
+            <div className="flex gap-2">
+              {(
+                [
+                  ["child", "Barn"],
+                  ["parent", "Förälder"],
+                ] as const
+              ).map(([nextRole, label]) => (
+                <button
+                  key={nextRole}
+                  type="button"
+                  onClick={() => setRole(nextRole)}
+                  className={`tap-target flex-1 rounded-xl px-3 py-2.5 text-sm font-bold ${
+                    role === nextRole
+                      ? "bg-[var(--accent)] text-white"
+                      : "bg-[var(--surface-soft)] text-[var(--ink-muted)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
           <fieldset>
             <legend className="mb-2 text-sm font-semibold text-[var(--ink-muted)]">
               Ikon

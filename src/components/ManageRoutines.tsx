@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { IconPicker } from "@/components/IconPicker";
 import { ManageModal } from "@/components/ManageModal";
 import { MicButton } from "@/components/MicButton";
-import { defaultPersonId, PersonTabs } from "@/components/PersonTabs";
+import { defaultChildId, PersonTabs } from "@/components/PersonTabs";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { WEEKDAY_LABELS } from "@/lib/dates";
 import { defaultRoutineSteps, getIconEmoji } from "@/lib/icons";
@@ -193,13 +193,14 @@ export function ManageRoutines() {
   const { people, routines, saveRoutine, createRoutine, removeRoutine } =
     useFamilyStore();
 
+  const children = people.filter((p) => p.role === "child");
   const [filterPersonId, setFilterPersonId] = useState(() =>
-    defaultPersonId(people),
+    defaultChildId(people),
   );
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, Routine>>({});
-  const [personId, setPersonId] = useState(() => defaultPersonId(people));
+  const [personId, setPersonId] = useState(() => defaultChildId(people));
   const [title, setTitle] = useState("Kväll");
   const [weekdays, setWeekdays] = useState<number[]>(() => [...ALL_WEEKDAYS]);
   const [showFrom, setShowFrom] = useState<string | undefined>();
@@ -207,13 +208,13 @@ export function ManageRoutines() {
   const [steps, setSteps] = useState<RoutineStep[]>(() => makeDefaultSteps());
   const [pickingStepId, setPickingStepId] = useState<string | null>(null);
 
-  const activeFilterId = defaultPersonId(people, filterPersonId);
-  const selectedPersonId = defaultPersonId(people, personId);
+  const activeFilterId = defaultChildId(people, filterPersonId);
+  const selectedPersonId = defaultChildId(people, personId);
   const filteredRoutines = routines
     .filter((routine) => routine.personId === activeFilterId)
     .slice()
     .sort(compareRoutines);
-  const filterPerson = people.find((p) => p.id === activeFilterId);
+  const filterPerson = children.find((p) => p.id === activeFilterId);
 
   const getDraft = (routine: Routine) => {
     const base = drafts[routine.id] ?? routine;
@@ -299,7 +300,8 @@ export function ManageRoutines() {
             resetCreateForm();
             setCreating(true);
           }}
-          className="tap-target shrink-0 rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-white"
+          disabled={children.length === 0}
+          className="tap-target shrink-0 rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40"
         >
           + Ny rutin
         </button>
@@ -308,8 +310,8 @@ export function ManageRoutines() {
       <PersonTabs
         people={people}
         selectedId={activeFilterId}
-        roles={["child", "parent"]}
-        label="Välj person"
+        roles={["child"]}
+        label="Välj barn"
         onSelect={(id) => {
           setFilterPersonId(id);
           setEditingId(null);
@@ -317,9 +319,13 @@ export function ManageRoutines() {
         }}
       />
 
-      {filteredRoutines.length === 0 ? (
+      {children.length === 0 ? (
         <div className="rounded-3xl bg-white/80 px-4 py-8 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
-          Inga rutiner för {filterPerson?.name ?? "denna person"} ännu.
+          Lägg till ett barn under Personer för att skapa rutiner.
+        </div>
+      ) : filteredRoutines.length === 0 ? (
+        <div className="rounded-3xl bg-white/80 px-4 py-8 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
+          Inga rutiner för {filterPerson?.name ?? "detta barn"} ännu.
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
@@ -588,7 +594,7 @@ export function ManageRoutines() {
       {creating ? (
         <ManageModal
           title="Ny rutin"
-          description="Välj person, dagar, tider och steg."
+          description="Välj barn, dagar, tider och steg."
           onClose={closeCreate}
         >
           <form
@@ -596,13 +602,13 @@ export function ManageRoutines() {
             className="flex flex-col gap-3"
           >
             <label className="grid gap-1 text-sm font-semibold text-[var(--ink-muted)]">
-              Vem
+              Barn
               <select
                 value={selectedPersonId}
                 onChange={(e) => setPersonId(e.target.value)}
                 className="tap-target rounded-xl border border-black/10 bg-white px-3 py-2 text-base"
               >
-                {people.map((p) => (
+                {children.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.avatar} {p.name}
                   </option>

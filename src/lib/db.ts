@@ -402,6 +402,65 @@ export async function putPerson(person: Person) {
   await db.put("people", person);
 }
 
+export async function deletePerson(id: string) {
+  const db = await getDb();
+  const [
+    events,
+    routines,
+    progress,
+    templates,
+    screenSettings,
+    screenDays,
+  ] = await Promise.all([
+    db.getAll("events"),
+    db.getAll("routines"),
+    db.getAll("routineProgress"),
+    db.getAll("recurringTemplates"),
+    db.getAll("screenTimeSettings"),
+    db.getAll("screenTimeDays"),
+  ]);
+
+  const routineIds = new Set(
+    routines.filter((row) => row.personId === id).map((row) => row.id),
+  );
+
+  const tx = db.transaction(
+    [
+      "people",
+      "events",
+      "routines",
+      "routineProgress",
+      "recurringTemplates",
+      "screenTimeSettings",
+      "screenTimeDays",
+    ],
+    "readwrite",
+  );
+
+  await tx.objectStore("people").delete(id);
+  await Promise.all([
+    ...events
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("events").delete(row.id)),
+    ...routines
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("routines").delete(row.id)),
+    ...progress
+      .filter((row) => routineIds.has(row.routineId))
+      .map((row) => tx.objectStore("routineProgress").delete(row.id)),
+    ...templates
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("recurringTemplates").delete(row.id)),
+    ...screenSettings
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("screenTimeSettings").delete(row.personId)),
+    ...screenDays
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("screenTimeDays").delete(row.id)),
+    tx.done,
+  ]);
+}
+
 export async function putEvent(event: Event) {
   const db = await getDb();
   await db.put("events", event);

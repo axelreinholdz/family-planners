@@ -14,6 +14,7 @@ import {
   applyTemplatesForWeek,
   applyTemplateSpan,
   deleteEvent as dbDeleteEvent,
+  deletePerson as dbDeletePerson,
   deleteRecurringTemplate as dbDeleteRecurringTemplate,
   deleteRoutine as dbDeleteRoutine,
   deleteTodo as dbDeleteTodo,
@@ -38,12 +39,13 @@ import {
   screenTimeDayId,
   SEED_DINNERS,
 } from "@/lib/seed";
-import { foldActiveSession } from "@/lib/screenTime";
+import { foldActiveSession, liveElapsedSeconds } from "@/lib/screenTime";
 import type {
   DinnerPlan,
   Event,
   IconKey,
   Person,
+  PersonRole,
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
@@ -65,6 +67,13 @@ interface FamilyStoreValue {
   recurringTemplates: RecurringTemplate[];
   refresh: () => Promise<void>;
   savePerson: (person: Person) => Promise<void>;
+  createPerson: (input: {
+    name: string;
+    role: PersonRole;
+    color: string;
+    avatar: string;
+  }) => Promise<void>;
+  removePerson: (id: string) => Promise<void>;
   saveEvent: (event: Event) => Promise<void>;
   removeEvent: (id: string) => Promise<void>;
   createEvent: (input: {
@@ -90,6 +99,11 @@ interface FamilyStoreValue {
   startScreenTime: (personId: string) => Promise<void>;
   stopScreenTime: (personId: string) => Promise<void>;
   addScreenTimeBonus: (personId: string, minutes: number) => Promise<void>;
+  /** Change remaining time today without changing daily allowance. Positive = more left. */
+  adjustScreenTimeUsed: (
+    personId: string,
+    deltaMinutes: number,
+  ) => Promise<void>;
   resetScreenTimeToday: (personId: string) => Promise<void>;
   toggleRoutineStep: (routineId: string, stepId: string) => Promise<void>;
   saveRoutine: (routine: Routine) => Promise<void>;
@@ -161,6 +175,40 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
   const savePerson = useCallback(
     async (person: Person) => {
       await putPerson(person);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const createPerson = useCallback(
+    async (input: {
+      name: string;
+      role: PersonRole;
+      color: string;
+      avatar: string;
+    }) => {
+      const name = input.name.trim();
+      if (!name) return;
+      const maxOrder = people.reduce(
+        (max, person) => Math.max(max, person.sortOrder),
+        -1,
+      );
+      await putPerson({
+        id: newId(input.role === "child" ? "child" : "parent"),
+        name,
+        role: input.role,
+        color: input.color,
+        avatar: input.avatar,
+        sortOrder: maxOrder + 1,
+      });
+      await refresh();
+    },
+    [people, refresh],
+  );
+
+  const removePerson = useCallback(
+    async (id: string) => {
+      await dbDeletePerson(id);
       await refresh();
     },
     [refresh],
@@ -383,7 +431,48 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       };
       const next: ScreenTimeDay = {
         ...base,
-        allowanceMinutes: base.allowanceMinutes + minutes,
+        allowanceMinutes: Math.max(0, base.allowanceMinutes + minutes),
+      };
+      setScreenTimeDays((prev) => {
+        const others = prev.filter((row) => row.id !== id);
+        return [...others, next];
+      });
+      try {
+        await putScreenTimeDay(next);
+      } catch {
+        await refresh();
+      }
+    },
+    [refresh, screenTimeDays, screenTimeSettings],
+  );
+
+  const adjustScreenTimeUsed = useCallback(
+    async (personId: string, deltaMinutes: number) => {
+      if (!deltaMinutes) return;
+      const date = todayKey();
+      const id = screenTimeDayId(personId, date);
+      const existing = screenTimeDays.find((row) => row.id === id);
+      const settings = screenTimeSettings.find(
+        (row) => row.personId === personId,
+      );
+      const base: ScreenTimeDay = existing ?? {
+        id,
+        personId,
+        date,
+        allowanceMinutes: settings?.dailyMinutes ?? 45,
+        usedSeconds: 0,
+      };
+      const live = liveElapsedSeconds(base);
+      const allowanceSeconds = base.allowanceMinutes * 60;
+      const maxUsed = Math.max(0, allowanceSeconds - live);
+      const nextUsed = Math.max(
+        0,
+        Math.min(maxUsed, base.usedSeconds - deltaMinutes * 60),
+      );
+      if (nextUsed === base.usedSeconds) return;
+      const next: ScreenTimeDay = {
+        ...base,
+        usedSeconds: nextUsed,
       };
       setScreenTimeDays((prev) => {
         const others = prev.filter((row) => row.id !== id);
@@ -470,10 +559,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
 
   const createRoutine = useCallback(
     async (input: Omit<Routine, "id">) => {
+      const person = people.find((p) => p.id === input.personId);
+      if (!person || person.role !== "child") return;
       await putRoutine({ id: newId("routine"), ...input });
       await refresh();
     },
-    [refresh],
+    [people, refresh],
   );
 
   const removeRoutine = useCallback(
@@ -543,6 +634,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       recurringTemplates,
       refresh,
       savePerson,
+      createPerson,
+      removePerson,
       saveEvent,
       removeEvent,
       createEvent,
@@ -559,6 +652,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       startScreenTime,
       stopScreenTime,
       addScreenTimeBonus,
+      adjustScreenTimeUsed,
       resetScreenTimeToday,
       toggleRoutineStep,
       saveRoutine,
@@ -584,6 +678,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       recurringTemplates,
       refresh,
       savePerson,
+      createPerson,
+      removePerson,
       saveEvent,
       removeEvent,
       createEvent,
@@ -600,6 +696,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       startScreenTime,
       stopScreenTime,
       addScreenTimeBonus,
+      adjustScreenTimeUsed,
       resetScreenTimeToday,
       toggleRoutineStep,
       saveRoutine,

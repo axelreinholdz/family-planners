@@ -43,6 +43,11 @@ export async function putPerson(person: Person) {
   return local.putPerson(person);
 }
 
+export async function deletePerson(id: string) {
+  if (cloudMode) return cloud.cloudDeletePerson(id);
+  return local.deletePerson(id);
+}
+
 export async function putEvent(event: Event) {
   if (cloudMode) return cloud.cloudPutEvent(event);
   return local.putEvent(event);

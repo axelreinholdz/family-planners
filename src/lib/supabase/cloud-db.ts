@@ -145,6 +145,27 @@ export async function cloudPutPerson(person: Person) {
   });
 }
 
+export async function cloudDeletePerson(id: string) {
+  await update((data) => {
+    const routineIds = new Set(
+      data.routines.filter((r) => r.personId === id).map((r) => r.id),
+    );
+    data.people = data.people.filter((p) => p.id !== id);
+    data.events = data.events.filter((e) => e.personId !== id);
+    data.routines = data.routines.filter((r) => r.personId !== id);
+    data.routineProgress = data.routineProgress.filter(
+      (p) => !routineIds.has(p.routineId),
+    );
+    data.recurringTemplates = data.recurringTemplates.filter(
+      (t) => t.personId !== id,
+    );
+    data.screenTimeSettings = data.screenTimeSettings.filter(
+      (s) => s.personId !== id,
+    );
+    data.screenTimeDays = data.screenTimeDays.filter((d) => d.personId !== id);
+  });
+}
+
 export async function cloudPutEvent(event: Event) {
   await update((data) => {
     const idx = data.events.findIndex((e) => e.id === event.id);

@@ -68,6 +68,7 @@ export function IdagView() {
     ensureTodayScreenTime,
     startScreenTime,
     stopScreenTime,
+    adjustScreenTimeUsed,
     toggleRoutineStep,
   } = useFamilyStore();
 
@@ -238,23 +239,47 @@ export function IdagView() {
             <p className="text-sm font-semibold text-[var(--ink-muted)]">
               Skärmtid är avstängd.
             </p>
-          ) : running ? (
-            <button
-              type="button"
-              onClick={() => void stopScreenTime(personId)}
-              className="tap-target w-full max-w-xs rounded-2xl bg-[#c45c4a] px-6 py-4 text-lg font-bold text-white"
-            >
-              Stoppa
-            </button>
           ) : (
-            <button
-              type="button"
-              disabled={exhausted}
-              onClick={() => void startScreenTime(personId)}
-              className="tap-target w-full max-w-xs rounded-2xl bg-[var(--accent)] px-6 py-4 text-lg font-bold text-white disabled:opacity-40"
-            >
-              Starta
-            </button>
+            <div className="flex w-full max-w-xs items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void adjustScreenTimeUsed(personId, -5)}
+                disabled={remaining <= 0}
+                className="tap-target flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/10 disabled:opacity-40"
+                aria-label="Dra av 5 minuter"
+                title="−5 min"
+              >
+                −
+              </button>
+              {running ? (
+                <button
+                  type="button"
+                  onClick={() => void stopScreenTime(personId)}
+                  className="tap-target min-w-0 flex-1 rounded-2xl bg-[#c45c4a] px-4 py-4 text-lg font-bold text-white"
+                >
+                  Stoppa
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={exhausted}
+                  onClick={() => void startScreenTime(personId)}
+                  className="tap-target min-w-0 flex-1 rounded-2xl bg-[var(--accent)] px-4 py-4 text-lg font-bold text-white disabled:opacity-40"
+                >
+                  Starta
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void adjustScreenTimeUsed(personId, 5)}
+                disabled={used <= 0}
+                className="tap-target flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/10 disabled:opacity-40"
+                aria-label="Lägg tillbaka 5 minuter"
+                title="+5 min"
+              >
+                +
+              </button>
+            </div>
           )}
         </section>
 
