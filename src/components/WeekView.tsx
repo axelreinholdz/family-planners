@@ -115,6 +115,7 @@ function PersonRow({
 export function WeekView() {
   const { people, events, ready, fillWeekFromTemplates } = useFamilyStore();
   const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
+  const [parentsExpanded, setParentsExpanded] = useState(false);
 
   const days = useMemo(() => weekDays(weekAnchor), [weekAnchor]);
   const children = people.filter((p) => p.role === "child");
@@ -201,15 +202,46 @@ export function WeekView() {
             emphasize
           />
         ))}
-        {parents.map((person) => (
-          <PersonRow
-            key={person.id}
-            person={person}
-            days={days}
-            events={events}
-            emphasize={false}
-          />
-        ))}
+        {parents.length > 0 ? (
+          <div className="mt-1 flex flex-col gap-2">
+            <button
+              type="button"
+              className="tap-target flex w-full items-center justify-between gap-3 rounded-2xl bg-white/70 px-4 py-2.5 text-left text-sm font-semibold text-[var(--ink)] shadow-sm ring-1 ring-black/5"
+              aria-expanded={parentsExpanded}
+              onClick={() => setParentsExpanded((open) => !open)}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span
+                  className="inline-block text-[var(--ink-muted)] transition-transform duration-200"
+                  style={{
+                    transform: parentsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                  }}
+                  aria-hidden
+                >
+                  ›
+                </span>
+                <span>Föräldrar</span>
+                <span className="font-medium text-[var(--ink-muted)]">
+                  ({parents.length})
+                </span>
+              </span>
+              <span className="shrink-0 text-[var(--ink-muted)]">
+                {parentsExpanded ? "Dölj" : "Visa"}
+              </span>
+            </button>
+            {parentsExpanded
+              ? parents.map((person) => (
+                  <PersonRow
+                    key={person.id}
+                    person={person}
+                    days={days}
+                    events={events}
+                    emphasize={false}
+                  />
+                ))
+              : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );
