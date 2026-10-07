@@ -25,6 +25,30 @@ export interface Event {
   allDay: boolean;
   /** Set when generated from a recurring template */
   templateId?: string;
+  /** Set when generated from an ICS calendar subscription */
+  calendarSubscriptionId?: string;
+  /** ICS UID (+ recurrence instance id when present) */
+  externalUid?: string;
+  /** Optional details from ICS (DESCRIPTION / LOCATION / URL). */
+  description?: string;
+  location?: string;
+  url?: string;
+}
+
+export interface CalendarSubscription {
+  id: string;
+  personId: string;
+  name: string;
+  url: string;
+  iconKey: IconKey;
+  /** Display emoji; when set, overrides the library icon. */
+  emoji?: string;
+  enabled: boolean;
+  /** Inclusive sync window (YYYY-MM-DD). */
+  startDate: string;
+  endDate: string;
+  lastSyncedAt?: string; // ISO
+  lastError?: string;
 }
 
 export interface RoutineStep {
@@ -113,4 +137,5 @@ export interface FamilyData {
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
+  calendarSubscriptions: CalendarSubscription[];
 }

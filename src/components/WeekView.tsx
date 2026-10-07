@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { ActivityDetailModal } from "@/components/ActivityDetailModal";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import {
   addDays,
@@ -34,11 +35,13 @@ function PersonRow({
   days,
   events,
   emphasize,
+  onSelectEvent,
 }: {
   person: Person;
   days: Date[];
   events: Event[];
   emphasize: boolean;
+  onSelectEvent: (event: Event) => void;
 }) {
   return (
     <div
@@ -78,12 +81,15 @@ function PersonRow({
               </div>
             ) : (
               cellEvents.map((event) => (
-                <div
+                <button
                   key={event.id}
-                  className={`flex flex-col items-center justify-center rounded-xl px-1 py-1 ${
+                  type="button"
+                  onClick={() => onSelectEvent(event)}
+                  className={`tap-target flex flex-col items-center justify-center rounded-xl px-1 py-1 text-left ${
                     emphasize ? "min-h-[4.25rem]" : "min-h-[2.75rem]"
                   }`}
                   style={{ backgroundColor: `${person.color}22` }}
+                  aria-label={`Visa detaljer för ${event.title}`}
                 >
                   <ActivityIcon
                     iconKey={event.iconKey}
@@ -102,7 +108,7 @@ function PersonRow({
                       {event.startTime}
                     </span>
                   ) : null}
-                </div>
+                </button>
               ))
             )}
           </div>
@@ -113,18 +119,38 @@ function PersonRow({
 }
 
 export function WeekView() {
-  const { people, events, ready, fillWeekFromTemplates } = useFamilyStore();
+  const {
+    people,
+    events,
+    calendarSubscriptions,
+    ready,
+    fillWeekFromTemplates,
+    syncAllCalendarSubscriptions,
+  } = useFamilyStore();
   const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
   const [parentsExpanded, setParentsExpanded] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
   const days = useMemo(() => weekDays(weekAnchor), [weekAnchor]);
   const children = people.filter((p) => p.role === "child");
   const parents = people.filter((p) => p.role === "parent");
+  const selectedEvent =
+    events.find((event) => event.id === selectedEventId) ?? null;
+  const selectedPerson = selectedEvent
+    ? people.find((person) => person.id === selectedEvent.personId)
+    : undefined;
+  const selectedSubscription = selectedEvent?.calendarSubscriptionId
+    ? calendarSubscriptions.find(
+        (subscription) =>
+          subscription.id === selectedEvent.calendarSubscriptionId,
+      )
+    : undefined;
 
   useEffect(() => {
     if (!ready) return;
     void fillWeekFromTemplates(weekAnchor);
-  }, [ready, weekAnchor, fillWeekFromTemplates]);
+    void syncAllCalendarSubscriptions();
+  }, [ready, weekAnchor, fillWeekFromTemplates, syncAllCalendarSubscriptions]);
 
   if (!ready) {
     return (
@@ -200,6 +226,7 @@ export function WeekView() {
             days={days}
             events={events}
             emphasize
+            onSelectEvent={(event) => setSelectedEventId(event.id)}
           />
         ))}
         {parents.length > 0 ? (
@@ -237,12 +264,22 @@ export function WeekView() {
                     days={days}
                     events={events}
                     emphasize={false}
+                    onSelectEvent={(event) => setSelectedEventId(event.id)}
                   />
                 ))
               : null}
           </div>
         ) : null}
       </div>
+
+      {selectedEvent ? (
+        <ActivityDetailModal
+          event={selectedEvent}
+          person={selectedPerson}
+          subscription={selectedSubscription}
+          onClose={() => setSelectedEventId(null)}
+        />
+      ) : null}
     </div>
   );
 }

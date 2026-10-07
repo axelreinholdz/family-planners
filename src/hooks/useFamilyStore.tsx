@@ -10,9 +10,16 @@ import {
   type ReactNode,
 } from "react";
 import {
+  fetchCalendarInstances,
+  reconcileCalendarEvents,
+  shouldSyncSubscription,
+} from "@/lib/calendarSync";
+import {
   applyAllTemplateSpans,
+  applyCalendarSubscriptionEvents,
   applyTemplatesForWeek,
   applyTemplateSpan,
+  deleteCalendarSubscription as dbDeleteCalendarSubscription,
   deleteEvent as dbDeleteEvent,
   deletePerson as dbDeletePerson,
   deleteRecurringTemplate as dbDeleteRecurringTemplate,
@@ -21,6 +28,7 @@ import {
   ensureScreenTimeDay,
   loadAll,
   newId,
+  putCalendarSubscription,
   putEvent,
   putPerson,
   putRecurringTemplate,
@@ -41,6 +49,7 @@ import {
 } from "@/lib/seed";
 import { foldActiveSession, liveElapsedSeconds } from "@/lib/screenTime";
 import type {
+  CalendarSubscription,
   DinnerPlan,
   Event,
   IconKey,
@@ -65,6 +74,7 @@ interface FamilyStoreValue {
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
+  calendarSubscriptions: CalendarSubscription[];
   refresh: () => Promise<void>;
   savePerson: (person: Person) => Promise<void>;
   createPerson: (input: {
@@ -116,6 +126,23 @@ interface FamilyStoreValue {
   removeRecurringTemplate: (id: string) => Promise<void>;
   fillWeekFromTemplates: (weekAnchor?: Date) => Promise<void>;
   fillAllRecurringTemplates: () => Promise<void>;
+  saveCalendarSubscription: (
+    subscription: CalendarSubscription,
+  ) => Promise<void>;
+  createCalendarSubscription: (
+    input: Omit<
+      CalendarSubscription,
+      "id" | "lastSyncedAt" | "lastError"
+    >,
+  ) => Promise<void>;
+  removeCalendarSubscription: (id: string) => Promise<void>;
+  syncCalendarSubscription: (
+    id: string,
+    options?: { force?: boolean },
+  ) => Promise<void>;
+  syncAllCalendarSubscriptions: (options?: {
+    force?: boolean;
+  }) => Promise<void>;
   resetData: () => Promise<void>;
 }
 
@@ -138,6 +165,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
   const [recurringTemplates, setRecurringTemplates] = useState<
     RecurringTemplate[]
   >([]);
+  const [calendarSubscriptions, setCalendarSubscriptions] = useState<
+    CalendarSubscription[]
+  >([]);
 
   const applyData = useCallback(
     (data: Awaited<ReturnType<typeof loadAll>>) => {
@@ -150,6 +180,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRoutines(data.routines);
       setRoutineProgress(data.routineProgress);
       setRecurringTemplates(data.recurringTemplates);
+      setCalendarSubscriptions(data.calendarSubscriptions ?? []);
       setReady(true);
     },
     [],
@@ -615,6 +646,110 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  const saveCalendarSubscription = useCallback(
+    async (subscription: CalendarSubscription) => {
+      await putCalendarSubscription(subscription);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const createCalendarSubscription = useCallback(
+    async (
+      input: Omit<
+        CalendarSubscription,
+        "id" | "lastSyncedAt" | "lastError"
+      >,
+    ) => {
+      const subscription: CalendarSubscription = {
+        id: newId("cal"),
+        ...input,
+      };
+      await putCalendarSubscription(subscription);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const removeCalendarSubscription = useCallback(
+    async (id: string) => {
+      await dbDeleteCalendarSubscription(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const syncCalendarSubscription = useCallback(
+    async (id: string, options?: { force?: boolean }) => {
+      const data = await loadAll();
+      const subscription = data.calendarSubscriptions.find((s) => s.id === id);
+      if (!subscription || !subscription.enabled) return;
+      if (!options?.force && !shouldSyncSubscription(subscription)) return;
+
+      try {
+        const instances = await fetchCalendarInstances(subscription);
+        const { upserts, deleteIds } = reconcileCalendarEvents(
+          subscription,
+          instances,
+          data.events,
+          newId,
+        );
+        const next: CalendarSubscription = {
+          ...subscription,
+          lastSyncedAt: new Date().toISOString(),
+          lastError: undefined,
+        };
+        await applyCalendarSubscriptionEvents(next, upserts, deleteIds);
+      } catch (err) {
+        const next: CalendarSubscription = {
+          ...subscription,
+          lastError:
+            err instanceof Error ? err.message : "Kunde inte synka kalender",
+        };
+        await putCalendarSubscription(next);
+      }
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const syncAllCalendarSubscriptions = useCallback(
+    async (options?: { force?: boolean }) => {
+      const data = await loadAll();
+      const enabled = data.calendarSubscriptions.filter((s) => s.enabled);
+      let changed = false;
+      for (const subscription of enabled) {
+        if (!options?.force && !shouldSyncSubscription(subscription)) continue;
+        changed = true;
+        try {
+          const instances = await fetchCalendarInstances(subscription);
+          const latest = await loadAll();
+          const { upserts, deleteIds } = reconcileCalendarEvents(
+            subscription,
+            instances,
+            latest.events,
+            newId,
+          );
+          const next: CalendarSubscription = {
+            ...subscription,
+            lastSyncedAt: new Date().toISOString(),
+            lastError: undefined,
+          };
+          await applyCalendarSubscriptionEvents(next, upserts, deleteIds);
+        } catch (err) {
+          const next: CalendarSubscription = {
+            ...subscription,
+            lastError:
+              err instanceof Error ? err.message : "Kunde inte synka kalender",
+          };
+          await putCalendarSubscription(next);
+        }
+      }
+      if (changed) await refresh();
+    },
+    [refresh],
+  );
+
   const resetData = useCallback(async () => {
     await resetToSeed();
     await refresh();
@@ -632,6 +767,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routines,
       routineProgress,
       recurringTemplates,
+      calendarSubscriptions,
       refresh,
       savePerson,
       createPerson,
@@ -663,6 +799,11 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       removeRecurringTemplate,
       fillWeekFromTemplates,
       fillAllRecurringTemplates,
+      saveCalendarSubscription,
+      createCalendarSubscription,
+      removeCalendarSubscription,
+      syncCalendarSubscription,
+      syncAllCalendarSubscriptions,
       resetData,
     }),
     [
@@ -676,6 +817,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routines,
       routineProgress,
       recurringTemplates,
+      calendarSubscriptions,
       refresh,
       savePerson,
       createPerson,
@@ -707,6 +849,11 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       removeRecurringTemplate,
       fillWeekFromTemplates,
       fillAllRecurringTemplates,
+      saveCalendarSubscription,
+      createCalendarSubscription,
+      removeCalendarSubscription,
+      syncCalendarSubscription,
+      syncAllCalendarSubscriptions,
       resetData,
     ],
   );

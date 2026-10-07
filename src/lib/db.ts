@@ -21,6 +21,7 @@ import {
   SEED_TEMPLATES,
 } from "./seed";
 import type {
+  CalendarSubscription,
   DinnerPlan,
   Event,
   Person,
@@ -74,10 +75,14 @@ interface FamilyPlannerDB extends DBSchema {
     key: string;
     value: RecurringTemplate;
   };
+  calendarSubscriptions: {
+    key: string;
+    value: CalendarSubscription;
+  };
 }
 
 const DB_NAME = "family-planners";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 let dbPromise: Promise<IDBPDatabase<FamilyPlannerDB>> | null = null;
 
@@ -116,6 +121,11 @@ function getDb() {
           }
           if (!db.objectStoreNames.contains("recurringTemplates")) {
             db.createObjectStore("recurringTemplates", { keyPath: "id" });
+          }
+        }
+        if (oldVersion < 4) {
+          if (!db.objectStoreNames.contains("calendarSubscriptions")) {
+            db.createObjectStore("calendarSubscriptions", { keyPath: "id" });
           }
         }
       },
@@ -318,6 +328,7 @@ async function ensureSeeded() {
         "routines",
         "routineProgress",
         "recurringTemplates",
+        "calendarSubscriptions",
       ],
       "readwrite",
     );
@@ -355,6 +366,7 @@ export async function loadAll(): Promise<{
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
+  calendarSubscriptions: CalendarSubscription[];
 }> {
   await ensureSeeded();
   const db = await getDb();
@@ -368,6 +380,7 @@ export async function loadAll(): Promise<{
     routines,
     routineProgress,
     recurringTemplates,
+    calendarSubscriptions,
   ] = await Promise.all([
     db.getAll("people"),
     db.getAll("events"),
@@ -378,12 +391,14 @@ export async function loadAll(): Promise<{
     db.getAll("routines"),
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
+    db.getAll("calendarSubscriptions"),
   ]);
   people.sort((a, b) => a.sortOrder - b.sortOrder);
   todos.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   dinners.sort((a, b) => a.weekday - b.weekday);
   routines.sort(compareRoutines);
   recurringTemplates.sort((a, b) => a.title.localeCompare(b.title, "sv"));
+  calendarSubscriptions.sort((a, b) => a.name.localeCompare(b.name, "sv"));
   return {
     people,
     events,
@@ -394,6 +409,7 @@ export async function loadAll(): Promise<{
     routines: routines.map(normalizeRoutine),
     routineProgress,
     recurringTemplates,
+    calendarSubscriptions,
   };
 }
 
@@ -409,6 +425,7 @@ export async function deletePerson(id: string) {
     routines,
     progress,
     templates,
+    subscriptions,
     screenSettings,
     screenDays,
   ] = await Promise.all([
@@ -416,6 +433,7 @@ export async function deletePerson(id: string) {
     db.getAll("routines"),
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
+    db.getAll("calendarSubscriptions"),
     db.getAll("screenTimeSettings"),
     db.getAll("screenTimeDays"),
   ]);
@@ -431,6 +449,7 @@ export async function deletePerson(id: string) {
       "routines",
       "routineProgress",
       "recurringTemplates",
+      "calendarSubscriptions",
       "screenTimeSettings",
       "screenTimeDays",
     ],
@@ -451,6 +470,9 @@ export async function deletePerson(id: string) {
     ...templates
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("recurringTemplates").delete(row.id)),
+    ...subscriptions
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("calendarSubscriptions").delete(row.id)),
     ...screenSettings
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("screenTimeSettings").delete(row.personId)),
@@ -577,6 +599,47 @@ export async function deleteRecurringTemplate(id: string) {
   await db.delete("recurringTemplates", id);
 }
 
+export async function putCalendarSubscription(
+  subscription: CalendarSubscription,
+) {
+  const db = await getDb();
+  await db.put("calendarSubscriptions", subscription);
+}
+
+export async function deleteCalendarSubscription(id: string) {
+  const db = await getDb();
+  const events = await db.getAll("events");
+  const tx = db.transaction(
+    ["calendarSubscriptions", "events"],
+    "readwrite",
+  );
+  await tx.objectStore("calendarSubscriptions").delete(id);
+  await Promise.all([
+    ...events
+      .filter((row) => row.calendarSubscriptionId === id)
+      .map((row) => tx.objectStore("events").delete(row.id)),
+    tx.done,
+  ]);
+}
+
+export async function applyCalendarSubscriptionEvents(
+  subscription: CalendarSubscription,
+  nextEvents: Event[],
+  deleteIds: string[],
+) {
+  const db = await getDb();
+  const tx = db.transaction(
+    ["calendarSubscriptions", "events"],
+    "readwrite",
+  );
+  await tx.objectStore("calendarSubscriptions").put(subscription);
+  await Promise.all([
+    ...deleteIds.map((id) => tx.objectStore("events").delete(id)),
+    ...nextEvents.map((event) => tx.objectStore("events").put(event)),
+    tx.done,
+  ]);
+}
+
 export async function resetToSeed() {
   const db = await getDb();
   const tx = db.transaction(
@@ -591,6 +654,7 @@ export async function resetToSeed() {
       "routines",
       "routineProgress",
       "recurringTemplates",
+      "calendarSubscriptions",
     ],
     "readwrite",
   );
@@ -604,6 +668,7 @@ export async function resetToSeed() {
     tx.objectStore("routines").clear(),
     tx.objectStore("routineProgress").clear(),
     tx.objectStore("recurringTemplates").clear(),
+    tx.objectStore("calendarSubscriptions").clear(),
     ...SEED_PEOPLE.map((person) => tx.objectStore("people").put(person)),
     ...buildSeedEvents().map((event) => tx.objectStore("events").put(event)),
     ...buildSeedTodos().map((todo) => tx.objectStore("todos").put(todo)),

@@ -18,6 +18,7 @@ import {
 } from "@/lib/supabase/family";
 import { routineProgressId, screenTimeDayId } from "@/lib/seed";
 import type {
+  CalendarSubscription,
   DinnerPlan,
   Event,
   FamilyData,
@@ -87,6 +88,9 @@ function sortPayload(payload: FamilyData) {
   payload.routines.sort(compareRoutines);
   payload.recurringTemplates.sort((a, b) =>
     a.title.localeCompare(b.title, "sv"),
+  );
+  payload.calendarSubscriptions.sort((a, b) =>
+    a.name.localeCompare(b.name, "sv"),
   );
 }
 
@@ -158,6 +162,9 @@ export async function cloudDeletePerson(id: string) {
     );
     data.recurringTemplates = data.recurringTemplates.filter(
       (t) => t.personId !== id,
+    );
+    data.calendarSubscriptions = data.calendarSubscriptions.filter(
+      (s) => s.personId !== id,
     );
     data.screenTimeSettings = data.screenTimeSettings.filter(
       (s) => s.personId !== id,
@@ -298,6 +305,51 @@ export async function cloudPutRecurringTemplate(template: RecurringTemplate) {
 export async function cloudDeleteRecurringTemplate(id: string) {
   await update((data) => {
     data.recurringTemplates = data.recurringTemplates.filter((t) => t.id !== id);
+  });
+}
+
+export async function cloudPutCalendarSubscription(
+  subscription: CalendarSubscription,
+) {
+  await update((data) => {
+    const idx = data.calendarSubscriptions.findIndex(
+      (s) => s.id === subscription.id,
+    );
+    if (idx >= 0) data.calendarSubscriptions[idx] = subscription;
+    else data.calendarSubscriptions.push(subscription);
+  });
+}
+
+export async function cloudDeleteCalendarSubscription(id: string) {
+  await update((data) => {
+    data.calendarSubscriptions = data.calendarSubscriptions.filter(
+      (s) => s.id !== id,
+    );
+    data.events = data.events.filter((e) => e.calendarSubscriptionId !== id);
+  });
+}
+
+export async function cloudApplyCalendarSubscriptionEvents(
+  subscription: CalendarSubscription,
+  nextEvents: Event[],
+  deleteIds: string[],
+) {
+  await update((data) => {
+    const idx = data.calendarSubscriptions.findIndex(
+      (s) => s.id === subscription.id,
+    );
+    if (idx >= 0) data.calendarSubscriptions[idx] = subscription;
+    else data.calendarSubscriptions.push(subscription);
+
+    if (deleteIds.length > 0) {
+      const remove = new Set(deleteIds);
+      data.events = data.events.filter((event) => !remove.has(event.id));
+    }
+    for (const event of nextEvents) {
+      const eventIdx = data.events.findIndex((e) => e.id === event.id);
+      if (eventIdx >= 0) data.events[eventIdx] = event;
+      else data.events.push(event);
+    }
   });
 }
 

@@ -6,6 +6,7 @@ import * as local from "@/lib/db";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import * as cloud from "@/lib/supabase/cloud-db";
 import type {
+  CalendarSubscription,
   DinnerPlan,
   Event,
   FamilyData,
@@ -122,6 +123,37 @@ export async function putRecurringTemplate(template: RecurringTemplate) {
 export async function deleteRecurringTemplate(id: string) {
   if (cloudMode) return cloud.cloudDeleteRecurringTemplate(id);
   return local.deleteRecurringTemplate(id);
+}
+
+export async function putCalendarSubscription(
+  subscription: CalendarSubscription,
+) {
+  if (cloudMode) return cloud.cloudPutCalendarSubscription(subscription);
+  return local.putCalendarSubscription(subscription);
+}
+
+export async function deleteCalendarSubscription(id: string) {
+  if (cloudMode) return cloud.cloudDeleteCalendarSubscription(id);
+  return local.deleteCalendarSubscription(id);
+}
+
+export async function applyCalendarSubscriptionEvents(
+  subscription: CalendarSubscription,
+  nextEvents: Event[],
+  deleteIds: string[],
+) {
+  if (cloudMode) {
+    return cloud.cloudApplyCalendarSubscriptionEvents(
+      subscription,
+      nextEvents,
+      deleteIds,
+    );
+  }
+  return local.applyCalendarSubscriptionEvents(
+    subscription,
+    nextEvents,
+    deleteIds,
+  );
 }
 
 export async function applyTemplatesForWeek(weekAnchor?: Date) {

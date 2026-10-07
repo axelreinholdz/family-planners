@@ -31,6 +31,7 @@ export function emptyFamilyData(): FamilyData {
     routines: [],
     routineProgress: [],
     recurringTemplates: [],
+    calendarSubscriptions: [],
   };
 }
 
@@ -67,6 +68,7 @@ export function buildSeedFamilyData(): FamilyData {
     })),
     routineProgress: [],
     recurringTemplates,
+    calendarSubscriptions: [],
   };
 }
 
@@ -248,5 +250,7 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
     routines: (partial.routines ?? base.routines).map(normalizeRoutine),
     routineProgress: partial.routineProgress ?? base.routineProgress,
     recurringTemplates: partial.recurringTemplates ?? base.recurringTemplates,
+    calendarSubscriptions:
+      partial.calendarSubscriptions ?? base.calendarSubscriptions,
   };
 }

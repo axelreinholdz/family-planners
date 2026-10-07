@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { IconPicker } from "@/components/IconPicker";
+import { ManageCalendars } from "@/components/ManageCalendars";
 import { ManageDinners } from "@/components/ManageDinners";
 import { ManageModal } from "@/components/ManageModal";
 import { ManageRecurring } from "@/components/ManageRecurring";
@@ -43,6 +44,7 @@ interface ManageViewProps {
 type Tab =
   | "activities"
   | "recurring"
+  | "calendars"
   | "routines"
   | "dinners"
   | "screentime"
@@ -198,6 +200,7 @@ export function ManageView({ onBack }: ManageViewProps) {
           [
             ["activities", "Aktiviteter"],
             ["recurring", "Återkommande"],
+            ["calendars", "Kalendrar"],
             ["routines", "Rutiner"],
             ["dinners", "Middagsmeny"],
             ["screentime", "Skärmtid"],
@@ -297,19 +300,22 @@ export function ManageView({ onBack }: ManageViewProps) {
                             : event.allDay
                               ? " · Heldag"
                               : ""}
+                          {event.calendarSubscriptionId ? " · kalender" : ""}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setEditingId((id) =>
-                            id === event.id ? null : event.id,
-                          )
-                        }
-                        className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--accent-deep)]"
-                      >
-                        {isEditing ? "Stäng" : "Ändra"}
-                      </button>
+                      {event.calendarSubscriptionId ? null : (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditingId((id) =>
+                              id === event.id ? null : event.id,
+                            )
+                          }
+                          className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--accent-deep)]"
+                        >
+                          {isEditing ? "Stäng" : "Ändra"}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => void removeEvent(event.id)}
@@ -318,7 +324,7 @@ export function ManageView({ onBack }: ManageViewProps) {
                         Ta bort
                       </button>
                     </div>
-                    {isEditing ? (
+                    {isEditing && !event.calendarSubscriptionId ? (
                       <div className="border-t border-black/5 px-4 py-4">
                         <ActivityEditor
                           people={people}
@@ -396,6 +402,8 @@ export function ManageView({ onBack }: ManageViewProps) {
       ) : null}
 
       {tab === "recurring" ? <ManageRecurring /> : null}
+
+      {tab === "calendars" ? <ManageCalendars /> : null}
 
       {tab === "routines" ? <ManageRoutines /> : null}
 
