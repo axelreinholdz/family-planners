@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityDetailModal } from "@/components/ActivityDetailModal";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import {
@@ -16,6 +16,9 @@ import {
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import type { Event, Person } from "@/lib/types";
 
+/** Max movement (px) still counted as a tap — iPad Safari often cancels click inside SwipePager. */
+const TAP_MOVE_THRESHOLD_PX = 10;
+
 function eventsForCell(
   events: Event[],
   personId: string,
@@ -28,6 +31,77 @@ function eventsForCell(
       if (!a.allDay && b.allDay) return 1;
       return (a.startTime ?? "").localeCompare(b.startTime ?? "");
     });
+}
+
+function ActivityCellButton({
+  event,
+  person,
+  emphasize,
+  onSelect,
+}: {
+  event: Event;
+  person: Person;
+  emphasize: boolean;
+  onSelect: (event: Event) => void;
+}) {
+  const pointerOrigin = useRef<{ x: number; y: number } | null>(null);
+  const openedByPointer = useRef(false);
+
+  return (
+    <button
+      type="button"
+      onPointerDown={(e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
+        pointerOrigin.current = { x: e.clientX, y: e.clientY };
+        openedByPointer.current = false;
+      }}
+      onPointerUp={(e) => {
+        const origin = pointerOrigin.current;
+        pointerOrigin.current = null;
+        if (!origin) return;
+        const dx = e.clientX - origin.x;
+        const dy = e.clientY - origin.y;
+        if (Math.hypot(dx, dy) <= TAP_MOVE_THRESHOLD_PX) {
+          openedByPointer.current = true;
+          onSelect(event);
+        }
+      }}
+      onPointerCancel={() => {
+        pointerOrigin.current = null;
+      }}
+      onClick={() => {
+        // Keyboard / mouse fallback; skip if pointerup already opened the modal.
+        if (openedByPointer.current) {
+          openedByPointer.current = false;
+          return;
+        }
+        onSelect(event);
+      }}
+      className={`tap-target touch-manipulation flex flex-col items-center justify-center rounded-xl px-1 py-1 text-left ${
+        emphasize ? "min-h-[4.25rem]" : "min-h-[2.75rem]"
+      }`}
+      style={{ backgroundColor: `${person.color}22` }}
+      aria-label={`Visa detaljer för ${event.title}`}
+    >
+      <ActivityIcon
+        iconKey={event.iconKey}
+        emoji={event.emoji}
+        size={emphasize ? "lg" : "sm"}
+        showLabel={emphasize || person.role === "child"}
+        title={event.title}
+      />
+      {!emphasize && person.role === "parent" ? (
+        <span className="mt-0.5 max-w-full truncate text-[0.65rem] font-semibold text-[var(--ink-muted)]">
+          {event.title}
+        </span>
+      ) : null}
+      {event.startTime ? (
+        <span className="text-[0.6rem] font-medium text-[var(--ink-muted)]">
+          {event.startTime}
+        </span>
+      ) : null}
+    </button>
+  );
 }
 
 function PersonRow({
@@ -81,34 +155,13 @@ function PersonRow({
               </div>
             ) : (
               cellEvents.map((event) => (
-                <button
+                <ActivityCellButton
                   key={event.id}
-                  type="button"
-                  onClick={() => onSelectEvent(event)}
-                  className={`tap-target flex flex-col items-center justify-center rounded-xl px-1 py-1 text-left ${
-                    emphasize ? "min-h-[4.25rem]" : "min-h-[2.75rem]"
-                  }`}
-                  style={{ backgroundColor: `${person.color}22` }}
-                  aria-label={`Visa detaljer för ${event.title}`}
-                >
-                  <ActivityIcon
-                    iconKey={event.iconKey}
-                    emoji={event.emoji}
-                    size={emphasize ? "lg" : "sm"}
-                    showLabel={emphasize || person.role === "child"}
-                    title={event.title}
-                  />
-                  {!emphasize && person.role === "parent" ? (
-                    <span className="mt-0.5 max-w-full truncate text-[0.65rem] font-semibold text-[var(--ink-muted)]">
-                      {event.title}
-                    </span>
-                  ) : null}
-                  {event.startTime ? (
-                    <span className="text-[0.6rem] font-medium text-[var(--ink-muted)]">
-                      {event.startTime}
-                    </span>
-                  ) : null}
-                </button>
+                  event={event}
+                  person={person}
+                  emphasize={emphasize}
+                  onSelect={onSelectEvent}
+                />
               ))
             )}
           </div>

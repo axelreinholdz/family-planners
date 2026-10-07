@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { dayLabel, parseDateKey } from "@/lib/dates";
 import type { CalendarSubscription, Event, Person } from "@/lib/types";
+
+const subscribeNoop = () => () => {};
+
+function useIsClient() {
+  return useSyncExternalStore(subscribeNoop, () => true, () => false);
+}
 
 function formatEventWhen(event: Event): string {
   const date = parseDateKey(event.date);
@@ -47,6 +54,7 @@ export function ActivityDetailModal({
   onClose,
 }: ActivityDetailModalProps) {
   const fromCalendar = Boolean(event.calendarSubscriptionId);
+  const isClient = useIsClient();
 
   useEffect(() => {
     const onKey = (keyboardEvent: KeyboardEvent) => {
@@ -56,7 +64,9 @@ export function ActivityDetailModal({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  return (
+  if (!isClient) return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
       <button
         type="button"
@@ -65,12 +75,12 @@ export function ActivityDetailModal({
         onClick={onClose}
       />
       <div
-        className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-3xl bg-white p-5 shadow-xl ring-1 ring-black/10"
+        className="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-black/10"
         role="dialog"
         aria-modal="true"
         aria-labelledby="activity-detail-title"
       >
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex shrink-0 items-start justify-between gap-3 p-5 pb-4">
           <div className="flex min-w-0 items-start gap-3">
             <span
               className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
@@ -112,57 +122,60 @@ export function ActivityDetailModal({
           </button>
         </div>
 
-        <div className="flex flex-col gap-4 rounded-2xl bg-[var(--surface-soft)] p-4">
-          {person ? (
-            <DetailRow label="Person">
-              <span className="inline-flex items-center gap-2">
-                <span aria-hidden>{person.avatar}</span>
-                {person.name}
-              </span>
-            </DetailRow>
-          ) : null}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 [-webkit-overflow-scrolling:touch]">
+          <div className="flex flex-col gap-4 rounded-2xl bg-[var(--surface-soft)] p-4">
+            {person ? (
+              <DetailRow label="Person">
+                <span className="inline-flex items-center gap-2">
+                  <span aria-hidden>{person.avatar}</span>
+                  {person.name}
+                </span>
+              </DetailRow>
+            ) : null}
 
-          <DetailRow label="När">{formatEventWhen(event)}</DetailRow>
+            <DetailRow label="När">{formatEventWhen(event)}</DetailRow>
 
-          {event.location ? (
-            <DetailRow label="Plats">{event.location}</DetailRow>
-          ) : null}
+            {event.location ? (
+              <DetailRow label="Plats">{event.location}</DetailRow>
+            ) : null}
 
-          {event.description ? (
-            <DetailRow label="Beskrivning">
-              <p className="whitespace-pre-wrap font-medium leading-relaxed">
-                {event.description}
+            {event.description ? (
+              <DetailRow label="Beskrivning">
+                <p className="whitespace-pre-wrap font-medium leading-relaxed">
+                  {event.description}
+                </p>
+              </DetailRow>
+            ) : null}
+
+            {event.url ? (
+              <DetailRow label="Länk">
+                <a
+                  href={event.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all font-bold text-[var(--accent-deep)] underline"
+                >
+                  {event.url}
+                </a>
+              </DetailRow>
+            ) : null}
+
+            {fromCalendar && subscription ? (
+              <DetailRow label="Kalender">{subscription.name}</DetailRow>
+            ) : null}
+
+            {fromCalendar &&
+            !event.location &&
+            !event.description &&
+            !event.url ? (
+              <p className="text-sm text-[var(--ink-muted)]">
+                Inga extra detaljer i kalenderhändelsen.
               </p>
-            </DetailRow>
-          ) : null}
-
-          {event.url ? (
-            <DetailRow label="Länk">
-              <a
-                href={event.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="break-all font-bold text-[var(--accent-deep)] underline"
-              >
-                {event.url}
-              </a>
-            </DetailRow>
-          ) : null}
-
-          {fromCalendar && subscription ? (
-            <DetailRow label="Kalender">{subscription.name}</DetailRow>
-          ) : null}
-
-          {fromCalendar &&
-          !event.location &&
-          !event.description &&
-          !event.url ? (
-            <p className="text-sm text-[var(--ink-muted)]">
-              Inga extra detaljer i kalenderhändelsen.
-            </p>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
