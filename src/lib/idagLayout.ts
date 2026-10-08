@@ -32,6 +32,24 @@ export const IDAG_GRID_MIN_ROWS = 8;
 
 export const IDAG_WIDGET_SIZES: IdagWidgetSize[] = ["S", "M", "L", "XL"];
 
+/** Sizes offered in Ordna for a widget type (routines cannot be S). */
+export function allowedSizesForWidget(
+  type: IdagWidgetType | IdagWidgetCatalogType,
+): IdagWidgetSize[] {
+  if (type === "routines") {
+    return IDAG_WIDGET_SIZES.filter((size) => size !== "S");
+  }
+  return IDAG_WIDGET_SIZES;
+}
+
+export function clampWidgetSize(
+  type: IdagWidgetType | IdagWidgetCatalogType,
+  size: IdagWidgetSize,
+): IdagWidgetSize {
+  const allowed = allowedSizesForWidget(type);
+  return allowed.includes(size) ? size : (allowed[0] ?? "M");
+}
+
 export const IDAG_WIDGET_ORIENTATIONS: IdagWidgetOrientation[] = [
   "horizontal",
   "vertical",
@@ -246,6 +264,8 @@ export function resizeWidget(
 ): IdagWidgetPlacement[] {
   const target = layout.find((p) => p.id === id);
   if (!target) return layout;
+
+  size = clampWidgetSize(target.type, size);
 
   const nextOrientation =
     size === "XL" ? (orientation ?? target.orientation ?? "horizontal") : undefined;
@@ -562,7 +582,7 @@ export function normalizeIdagLayout(input: unknown): IdagWidgetPlacement[] {
     if (seen.has(type)) continue;
     seen.add(type);
 
-    const size = resolvePlacementSize(record);
+    const size = clampWidgetSize(type, resolvePlacementSize(record));
     const orientation = resolvePlacementOrientation(record, size);
     const id =
       typeof record.id === "string" && record.id.trim()

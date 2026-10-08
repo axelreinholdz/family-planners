@@ -21,10 +21,10 @@ import {
   IDAG_GRID_COLUMNS,
   IDAG_WIDGET_ORIENTATIONS,
   IDAG_WIDGET_ORIENTATION_LABELS,
-  IDAG_WIDGET_SIZES,
   IDAG_WIDGET_SIZE_HINTS,
   IDAG_WIDGET_SIZE_LABELS,
   addWidgetToLayout,
+  allowedSizesForWidget,
   availablePhase1Types,
   canPlaceAt,
   catalogEntryFor,
@@ -73,16 +73,19 @@ function WidgetBody({
 }
 
 function SizeChrome({
+  type,
   size,
   orientation,
   onSize,
   onOrientation,
 }: {
+  type: IdagWidgetType;
   size: IdagWidgetSize;
   orientation: IdagWidgetOrientation;
   onSize: (size: IdagWidgetSize) => void;
   onOrientation: (orientation: IdagWidgetOrientation) => void;
 }) {
+  const sizes = allowedSizesForWidget(type);
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <div
@@ -90,7 +93,7 @@ function SizeChrome({
         role="group"
         aria-label="Storlek"
       >
-        {IDAG_WIDGET_SIZES.map((value) => (
+        {sizes.map((value) => (
           <button
             key={value}
             type="button"
@@ -247,6 +250,7 @@ function DraggableWidgetCard({
             <span className="min-w-0 flex-1" />
           )}
           <SizeChrome
+            type={placement.type}
             size={placement.size}
             orientation={orientation}
             onSize={(next) => onSizeChange(placement.id, next)}
