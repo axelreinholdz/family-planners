@@ -95,6 +95,7 @@ function sortPayload(payload: FamilyData) {
     a.name.localeCompare(b.name, "sv"),
   );
   payload.idagLayout = normalizeIdagLayout(payload.idagLayout);
+  payload.idagLayoutLocked = Boolean(payload.idagLayoutLocked);
 }
 
 export function clearCloudCache() {
@@ -359,6 +360,12 @@ export async function cloudApplyCalendarSubscriptionEvents(
 export async function cloudPutIdagLayout(layout: IdagWidgetPlacement[]) {
   await update((data) => {
     data.idagLayout = normalizeIdagLayout(layout);
+  });
+}
+
+export async function cloudPutIdagLayoutLocked(locked: boolean) {
+  await update((data) => {
+    data.idagLayoutLocked = Boolean(locked);
   });
 }
 

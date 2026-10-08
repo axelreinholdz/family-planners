@@ -36,6 +36,7 @@ import type {
 } from "./types";
 
 const IDAG_LAYOUT_META_KEY = "idagLayout";
+const IDAG_LAYOUT_LOCKED_META_KEY = "idagLayoutLocked";
 
 interface FamilyPlannerDB extends DBSchema {
   meta: {
@@ -372,6 +373,13 @@ async function readIdagLayout(
   }
 }
 
+async function readIdagLayoutLocked(
+  db: IDBPDatabase<FamilyPlannerDB>,
+): Promise<boolean> {
+  const raw = await db.get("meta", IDAG_LAYOUT_LOCKED_META_KEY);
+  return raw === true || raw === "true" || raw === 1;
+}
+
 export async function loadAll(): Promise<{
   people: Person[];
   events: Event[];
@@ -384,6 +392,7 @@ export async function loadAll(): Promise<{
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
   idagLayout: IdagWidgetPlacement[];
+  idagLayoutLocked: boolean;
 }> {
   await ensureSeeded();
   const db = await getDb();
@@ -399,6 +408,7 @@ export async function loadAll(): Promise<{
     recurringTemplates,
     calendarSubscriptions,
     idagLayout,
+    idagLayoutLocked,
   ] = await Promise.all([
     db.getAll("people"),
     db.getAll("events"),
@@ -411,6 +421,7 @@ export async function loadAll(): Promise<{
     db.getAll("recurringTemplates"),
     db.getAll("calendarSubscriptions"),
     readIdagLayout(db),
+    readIdagLayoutLocked(db),
   ]);
   people.sort((a, b) => a.sortOrder - b.sortOrder);
   todos.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -430,6 +441,7 @@ export async function loadAll(): Promise<{
     recurringTemplates,
     calendarSubscriptions,
     idagLayout,
+    idagLayoutLocked,
   };
 }
 
@@ -632,6 +644,11 @@ export async function putIdagLayout(layout: IdagWidgetPlacement[]) {
   await db.put("meta", JSON.stringify(normalized), IDAG_LAYOUT_META_KEY);
 }
 
+export async function putIdagLayoutLocked(locked: boolean) {
+  const db = await getDb();
+  await db.put("meta", locked, IDAG_LAYOUT_LOCKED_META_KEY);
+}
+
 export async function deleteCalendarSubscription(id: string) {
   const db = await getDb();
   const events = await db.getAll("events");
@@ -710,6 +727,7 @@ export async function resetToSeed() {
     tx
       .objectStore("meta")
       .put(JSON.stringify(defaultIdagLayout()), IDAG_LAYOUT_META_KEY),
+    tx.objectStore("meta").put(false, IDAG_LAYOUT_LOCKED_META_KEY),
     tx.done,
   ]);
   await applyAllTemplateSpans();

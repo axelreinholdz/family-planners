@@ -34,6 +34,7 @@ export function emptyFamilyData(): FamilyData {
     recurringTemplates: [],
     calendarSubscriptions: [],
     idagLayout: defaultIdagLayout(),
+    idagLayoutLocked: false,
   };
 }
 
@@ -72,6 +73,7 @@ export function buildSeedFamilyData(): FamilyData {
     recurringTemplates,
     calendarSubscriptions: [],
     idagLayout: defaultIdagLayout(),
+    idagLayoutLocked: false,
   };
 }
 
@@ -256,5 +258,6 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
     calendarSubscriptions:
       partial.calendarSubscriptions ?? base.calendarSubscriptions,
     idagLayout: normalizeIdagLayout(partial.idagLayout),
+    idagLayoutLocked: Boolean(partial.idagLayoutLocked),
   };
 }

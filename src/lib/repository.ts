@@ -162,6 +162,11 @@ export async function putIdagLayout(layout: IdagWidgetPlacement[]) {
   return local.putIdagLayout(layout);
 }
 
+export async function putIdagLayoutLocked(locked: boolean) {
+  if (cloudMode) return cloud.cloudPutIdagLayoutLocked(locked);
+  return local.putIdagLayoutLocked(locked);
+}
+
 export async function applyTemplatesForWeek(weekAnchor?: Date) {
   if (cloudMode) return cloud.cloudApplyTemplatesForWeek(weekAnchor);
   return local.applyTemplatesForWeek(weekAnchor);

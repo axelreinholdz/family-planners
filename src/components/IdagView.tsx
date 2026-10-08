@@ -2,26 +2,69 @@
 
 import { useState } from "react";
 import { IdagWidgetGrid } from "@/components/idag/IdagWidgetGrid";
+import { ManagePinGate } from "@/components/ManagePinGate";
 import { useFamilyStore, EBBE_ID } from "@/hooks/useFamilyStore";
 
 export function IdagView() {
-  const { ready, people, idagLayout, saveIdagLayout } = useFamilyStore();
+  const {
+    ready,
+    people,
+    idagLayout,
+    idagLayoutLocked,
+    saveIdagLayout,
+    saveIdagLayoutLocked,
+  } = useFamilyStore();
   const children = people.filter((p) => p.role === "child");
   const defaultChildId =
     children.find((p) => p.id === EBBE_ID)?.id ?? children[0]?.id ?? EBBE_ID;
   const [selectedChildId, setSelectedChildId] = useState(defaultChildId);
   const [editing, setEditing] = useState(false);
+  const [pinPrompt, setPinPrompt] = useState(false);
 
   const personId = children.some((p) => p.id === selectedChildId)
     ? selectedChildId
     : defaultChildId;
   const child = children.find((p) => p.id === personId) ?? children[0];
 
+  const requestOrdna = () => {
+    if (idagLayoutLocked) {
+      setPinPrompt(true);
+      return;
+    }
+    setEditing(true);
+  };
+
+  const exitOrdna = () => setEditing(false);
+
+  const lockLayout = () => {
+    void saveIdagLayoutLocked(true);
+    setEditing(false);
+  };
+
+  const unlockLayout = () => {
+    void saveIdagLayoutLocked(false);
+  };
+
   if (!ready) {
     return (
       <div className="flex flex-1 items-center justify-center text-[var(--ink-muted)]">
         Laddar idag…
       </div>
+    );
+  }
+
+  if (pinPrompt) {
+    return (
+      <ManagePinGate
+        eyebrow="Ordna"
+        title="Ange PIN-kod"
+        description="Widgetlayouten är låst. Ange samma PIN som till Hantera för att ändra."
+        onUnlock={() => {
+          setPinPrompt(false);
+          setEditing(true);
+        }}
+        onCancel={() => setPinPrompt(false)}
+      />
     );
   }
 
@@ -35,7 +78,9 @@ export function IdagView() {
           <p className="text-sm font-medium text-[var(--ink-muted)]">
             {editing
               ? "Dra, ändra storlek eller lägg till widgets"
-              : "Skärmtid, middag, nästa och rutiner"}
+              : idagLayoutLocked
+                ? "Widgetlayouten är låst"
+                : "Skärmtid, middag, nästa och rutiner"}
           </p>
         </div>
 
@@ -79,17 +124,51 @@ export function IdagView() {
             </div>
           ) : null}
 
-          <button
-            type="button"
-            onClick={() => setEditing((v) => !v)}
-            className={`tap-target absolute right-0 shrink-0 rounded-2xl px-4 py-2.5 text-sm font-bold ${
-              editing
-                ? "bg-[var(--ink)] text-white"
-                : "bg-white/80 text-[var(--ink)] shadow-sm ring-1 ring-black/5"
-            }`}
-          >
-            {editing ? "Klar" : "Ordna"}
-          </button>
+          <div className="absolute right-0 flex items-center gap-2">
+            {editing ? (
+              <>
+                {idagLayoutLocked ? (
+                  <button
+                    type="button"
+                    onClick={unlockLayout}
+                    className="tap-target rounded-2xl bg-white/80 px-3 py-2.5 text-sm font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/5"
+                    title="Ta bort lås så Ordna inte kräver PIN"
+                  >
+                    Lås upp
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={lockLayout}
+                    className="tap-target rounded-2xl bg-white/80 px-3 py-2.5 text-sm font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/5"
+                    title="Lås layouten med Hantera-PIN"
+                  >
+                    Lås
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={exitOrdna}
+                  className="tap-target shrink-0 rounded-2xl bg-[var(--ink)] px-4 py-2.5 text-sm font-bold text-white"
+                >
+                  Klar
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={requestOrdna}
+                className="tap-target shrink-0 rounded-2xl bg-white/80 px-4 py-2.5 text-sm font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/5"
+                title={
+                  idagLayoutLocked
+                    ? "Ordna (kräver PIN)"
+                    : "Ordna widgets"
+                }
+              >
+                {idagLayoutLocked ? "Ordna · låst" : "Ordna"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

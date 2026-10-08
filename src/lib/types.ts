@@ -174,4 +174,6 @@ export interface FamilyData {
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
   idagLayout: IdagWidgetPlacement[];
+  /** When true, Ordna requires the Hantera PIN. */
+  idagLayoutLocked: boolean;
 }

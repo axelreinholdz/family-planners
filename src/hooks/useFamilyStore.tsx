@@ -31,6 +31,7 @@ import {
   putCalendarSubscription,
   putEvent,
   putIdagLayout,
+  putIdagLayoutLocked,
   putPerson,
   putRecurringTemplate,
   putRoutine,
@@ -79,6 +80,7 @@ interface FamilyStoreValue {
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
   idagLayout: IdagWidgetPlacement[];
+  idagLayoutLocked: boolean;
   refresh: () => Promise<void>;
   savePerson: (person: Person) => Promise<void>;
   createPerson: (input: {
@@ -148,6 +150,7 @@ interface FamilyStoreValue {
     force?: boolean;
   }) => Promise<void>;
   saveIdagLayout: (layout: IdagWidgetPlacement[]) => Promise<void>;
+  saveIdagLayoutLocked: (locked: boolean) => Promise<void>;
   resetData: () => Promise<void>;
 }
 
@@ -176,6 +179,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
   const [idagLayout, setIdagLayout] = useState<IdagWidgetPlacement[]>(() =>
     defaultIdagLayout(),
   );
+  const [idagLayoutLocked, setIdagLayoutLocked] = useState(false);
 
   const applyData = useCallback(
     (data: Awaited<ReturnType<typeof loadAll>>) => {
@@ -190,6 +194,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRecurringTemplates(data.recurringTemplates);
       setCalendarSubscriptions(data.calendarSubscriptions ?? []);
       setIdagLayout(normalizeIdagLayout(data.idagLayout));
+      setIdagLayoutLocked(Boolean(data.idagLayoutLocked));
       setReady(true);
     },
     [],
@@ -772,6 +777,18 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const saveIdagLayoutLocked = useCallback(
+    async (locked: boolean) => {
+      setIdagLayoutLocked(locked);
+      try {
+        await putIdagLayoutLocked(locked);
+      } catch {
+        await refresh();
+      }
+    },
+    [refresh],
+  );
+
   const resetData = useCallback(async () => {
     await resetToSeed();
     await refresh();
@@ -791,6 +808,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       recurringTemplates,
       calendarSubscriptions,
       idagLayout,
+      idagLayoutLocked,
       refresh,
       savePerson,
       createPerson,
@@ -828,6 +846,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       syncCalendarSubscription,
       syncAllCalendarSubscriptions,
       saveIdagLayout,
+      saveIdagLayoutLocked,
       resetData,
     }),
     [
@@ -843,6 +862,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       recurringTemplates,
       calendarSubscriptions,
       idagLayout,
+      idagLayoutLocked,
       refresh,
       savePerson,
       createPerson,
@@ -880,6 +900,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       syncCalendarSubscription,
       syncAllCalendarSubscriptions,
       saveIdagLayout,
+      saveIdagLayoutLocked,
       resetData,
     ],
   );

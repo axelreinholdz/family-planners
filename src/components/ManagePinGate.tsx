@@ -6,9 +6,18 @@ import { getManagePinLength, verifyManagePin } from "@/lib/managePin";
 interface ManagePinGateProps {
   onUnlock: () => void;
   onCancel: () => void;
+  eyebrow?: string;
+  title?: string;
+  description?: string;
 }
 
-export function ManagePinGate({ onUnlock, onCancel }: ManagePinGateProps) {
+export function ManagePinGate({
+  onUnlock,
+  onCancel,
+  eyebrow = "Hantera",
+  title = "Ange PIN-kod",
+  description = "Föräldraläge skyddas så barnen inte råkar ändra saker.",
+}: ManagePinGateProps) {
   const pinLength = getManagePinLength();
   const [digits, setDigits] = useState("");
   const [error, setError] = useState(false);
@@ -52,13 +61,13 @@ export function ManagePinGate({ onUnlock, onCancel }: ManagePinGateProps) {
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 px-4">
       <div className="w-full max-w-sm rounded-[2rem] bg-white/85 p-6 shadow-lg ring-1 ring-black/5">
         <p className="text-center text-xs font-bold uppercase tracking-wider text-[var(--ink-muted)]">
-          Hantera
+          {eyebrow}
         </p>
         <h2 className="mt-1 text-center font-display text-2xl font-bold text-[var(--ink)]">
-          Ange PIN-kod
+          {title}
         </h2>
         <p className="mt-2 text-center text-sm text-[var(--ink-muted)]">
-          Föräldraläge skyddas så barnen inte råkar ändra saker.
+          {description}
         </p>
 
         <div className="mt-6 flex justify-center gap-3" aria-live="polite">
