@@ -32,14 +32,12 @@ export const IDAG_GRID_MIN_ROWS = 8;
 
 export const IDAG_WIDGET_SIZES: IdagWidgetSize[] = ["S", "M", "L", "XL"];
 
-/** Sizes offered in Ordna for a widget type (routines cannot be S). */
+/** Sizes offered in Ordna — only dinner may use S. */
 export function allowedSizesForWidget(
   type: IdagWidgetType | IdagWidgetCatalogType,
 ): IdagWidgetSize[] {
-  if (type === "routines") {
-    return IDAG_WIDGET_SIZES.filter((size) => size !== "S");
-  }
-  return IDAG_WIDGET_SIZES;
+  if (type === "dinner") return IDAG_WIDGET_SIZES;
+  return IDAG_WIDGET_SIZES.filter((size) => size !== "S");
 }
 
 export function clampWidgetSize(
