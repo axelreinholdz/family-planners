@@ -9,7 +9,10 @@ import {
   weekAnchorsBetween,
 } from "@/lib/recurring";
 import { todayKey } from "@/lib/dates";
-import { normalizeIdagLayout } from "@/lib/idagLayout";
+import {
+  normalizeIdagLayouts,
+  setIdagLayoutForPerson,
+} from "@/lib/idagLayout";
 import { compareRoutines } from "@/lib/routines";
 import {
   buildSeedFamilyData,
@@ -94,7 +97,10 @@ function sortPayload(payload: FamilyData) {
   payload.calendarSubscriptions.sort((a, b) =>
     a.name.localeCompare(b.name, "sv"),
   );
-  payload.idagLayout = normalizeIdagLayout(payload.idagLayout);
+  payload.idagLayouts = normalizeIdagLayouts(
+    payload.idagLayouts ??
+      (payload as { idagLayout?: unknown }).idagLayout,
+  );
   payload.idagLayoutLocked = Boolean(payload.idagLayoutLocked);
 }
 
@@ -357,9 +363,16 @@ export async function cloudApplyCalendarSubscriptionEvents(
   });
 }
 
-export async function cloudPutIdagLayout(layout: IdagWidgetPlacement[]) {
+export async function cloudPutIdagLayout(
+  personId: string,
+  layout: IdagWidgetPlacement[],
+) {
   await update((data) => {
-    data.idagLayout = normalizeIdagLayout(layout);
+    data.idagLayouts = setIdagLayoutForPerson(
+      normalizeIdagLayouts(data.idagLayouts),
+      personId,
+      layout,
+    );
   });
 }
 

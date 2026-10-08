@@ -43,7 +43,12 @@ import {
   saveDinnerMenu,
 } from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
-import { defaultIdagLayout, normalizeIdagLayout } from "@/lib/idagLayout";
+import {
+  getIdagLayoutForPerson,
+  normalizeIdagLayout,
+  normalizeIdagLayouts,
+  setIdagLayoutForPerson,
+} from "@/lib/idagLayout";
 import {
   EBBE_ID,
   routineProgressId,
@@ -79,8 +84,9 @@ interface FamilyStoreValue {
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
-  idagLayout: IdagWidgetPlacement[];
+  idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
+  getIdagLayout: (personId: string) => IdagWidgetPlacement[];
   refresh: () => Promise<void>;
   savePerson: (person: Person) => Promise<void>;
   createPerson: (input: {
@@ -149,7 +155,10 @@ interface FamilyStoreValue {
   syncAllCalendarSubscriptions: (options?: {
     force?: boolean;
   }) => Promise<void>;
-  saveIdagLayout: (layout: IdagWidgetPlacement[]) => Promise<void>;
+  saveIdagLayout: (
+    personId: string,
+    layout: IdagWidgetPlacement[],
+  ) => Promise<void>;
   saveIdagLayoutLocked: (locked: boolean) => Promise<void>;
   resetData: () => Promise<void>;
 }
@@ -176,9 +185,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
   const [calendarSubscriptions, setCalendarSubscriptions] = useState<
     CalendarSubscription[]
   >([]);
-  const [idagLayout, setIdagLayout] = useState<IdagWidgetPlacement[]>(() =>
-    defaultIdagLayout(),
-  );
+  const [idagLayouts, setIdagLayouts] = useState<
+    Record<string, IdagWidgetPlacement[]>
+  >({});
   const [idagLayoutLocked, setIdagLayoutLocked] = useState(false);
 
   const applyData = useCallback(
@@ -193,7 +202,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRoutineProgress(data.routineProgress);
       setRecurringTemplates(data.recurringTemplates);
       setCalendarSubscriptions(data.calendarSubscriptions ?? []);
-      setIdagLayout(normalizeIdagLayout(data.idagLayout));
+      setIdagLayouts(normalizeIdagLayouts(data.idagLayouts));
       setIdagLayoutLocked(Boolean(data.idagLayoutLocked));
       setReady(true);
     },
@@ -764,12 +773,19 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const getIdagLayout = useCallback(
+    (personId: string) => getIdagLayoutForPerson(idagLayouts, personId),
+    [idagLayouts],
+  );
+
   const saveIdagLayout = useCallback(
-    async (layout: IdagWidgetPlacement[]) => {
+    async (personId: string, layout: IdagWidgetPlacement[]) => {
       const normalized = normalizeIdagLayout(layout);
-      setIdagLayout(normalized);
+      setIdagLayouts((prev) =>
+        setIdagLayoutForPerson(prev, personId, normalized),
+      );
       try {
-        await putIdagLayout(normalized);
+        await putIdagLayout(personId, normalized);
       } catch {
         await refresh();
       }
@@ -807,8 +823,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routineProgress,
       recurringTemplates,
       calendarSubscriptions,
-      idagLayout,
+      idagLayouts,
       idagLayoutLocked,
+      getIdagLayout,
       refresh,
       savePerson,
       createPerson,
@@ -861,8 +878,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routineProgress,
       recurringTemplates,
       calendarSubscriptions,
-      idagLayout,
+      idagLayouts,
       idagLayoutLocked,
+      getIdagLayout,
       refresh,
       savePerson,
       createPerson,

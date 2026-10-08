@@ -173,7 +173,8 @@ export interface FamilyData {
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
-  idagLayout: IdagWidgetPlacement[];
+  /** Widget grid layout per child person id. */
+  idagLayouts: Record<string, IdagWidgetPlacement[]>;
   /** When true, Ordna requires the Hantera PIN. */
   idagLayoutLocked: boolean;
 }

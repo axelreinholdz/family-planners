@@ -7,7 +7,7 @@ import {
   reconcileTemplateEvents,
   weekAnchorsBetween,
 } from "./recurring";
-import { defaultIdagLayout, normalizeIdagLayout } from "./idagLayout";
+import { normalizeIdagLayouts, setIdagLayoutForPerson } from "./idagLayout";
 import { compareRoutines, normalizeRoutine } from "./routines";
 import {
   buildSeedEvents,
@@ -361,15 +361,15 @@ async function ensureSeeded() {
   await applyAllTemplateSpans();
 }
 
-async function readIdagLayout(
+async function readIdagLayouts(
   db: IDBPDatabase<FamilyPlannerDB>,
-): Promise<IdagWidgetPlacement[]> {
+): Promise<Record<string, IdagWidgetPlacement[]>> {
   const raw = await db.get("meta", IDAG_LAYOUT_META_KEY);
-  if (typeof raw !== "string" || !raw) return defaultIdagLayout();
+  if (typeof raw !== "string" || !raw) return {};
   try {
-    return normalizeIdagLayout(JSON.parse(raw) as unknown);
+    return normalizeIdagLayouts(JSON.parse(raw) as unknown);
   } catch {
-    return defaultIdagLayout();
+    return {};
   }
 }
 
@@ -391,7 +391,7 @@ export async function loadAll(): Promise<{
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
-  idagLayout: IdagWidgetPlacement[];
+  idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
 }> {
   await ensureSeeded();
@@ -407,7 +407,7 @@ export async function loadAll(): Promise<{
     routineProgress,
     recurringTemplates,
     calendarSubscriptions,
-    idagLayout,
+    idagLayouts,
     idagLayoutLocked,
   ] = await Promise.all([
     db.getAll("people"),
@@ -420,7 +420,7 @@ export async function loadAll(): Promise<{
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
     db.getAll("calendarSubscriptions"),
-    readIdagLayout(db),
+    readIdagLayouts(db),
     readIdagLayoutLocked(db),
   ]);
   people.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -440,7 +440,7 @@ export async function loadAll(): Promise<{
     routineProgress,
     recurringTemplates,
     calendarSubscriptions,
-    idagLayout,
+    idagLayouts,
     idagLayoutLocked,
   };
 }
@@ -638,10 +638,14 @@ export async function putCalendarSubscription(
   await db.put("calendarSubscriptions", subscription);
 }
 
-export async function putIdagLayout(layout: IdagWidgetPlacement[]) {
+export async function putIdagLayout(
+  personId: string,
+  layout: IdagWidgetPlacement[],
+) {
   const db = await getDb();
-  const normalized = normalizeIdagLayout(layout);
-  await db.put("meta", JSON.stringify(normalized), IDAG_LAYOUT_META_KEY);
+  const current = await readIdagLayouts(db);
+  const next = setIdagLayoutForPerson(current, personId, layout);
+  await db.put("meta", JSON.stringify(next), IDAG_LAYOUT_META_KEY);
 }
 
 export async function putIdagLayoutLocked(locked: boolean) {
@@ -724,9 +728,7 @@ export async function resetToSeed() {
       tx.objectStore("recurringTemplates").put(row),
     ),
     tx.objectStore("meta").put(true, "seeded"),
-    tx
-      .objectStore("meta")
-      .put(JSON.stringify(defaultIdagLayout()), IDAG_LAYOUT_META_KEY),
+    tx.objectStore("meta").put(JSON.stringify({}), IDAG_LAYOUT_META_KEY),
     tx.objectStore("meta").put(false, IDAG_LAYOUT_LOCKED_META_KEY),
     tx.done,
   ]);

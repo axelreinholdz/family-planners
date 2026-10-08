@@ -157,9 +157,12 @@ export async function applyCalendarSubscriptionEvents(
   );
 }
 
-export async function putIdagLayout(layout: IdagWidgetPlacement[]) {
-  if (cloudMode) return cloud.cloudPutIdagLayout(layout);
-  return local.putIdagLayout(layout);
+export async function putIdagLayout(
+  personId: string,
+  layout: IdagWidgetPlacement[],
+) {
+  if (cloudMode) return cloud.cloudPutIdagLayout(personId, layout);
+  return local.putIdagLayout(personId, layout);
 }
 
 export async function putIdagLayoutLocked(locked: boolean) {

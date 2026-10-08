@@ -15,6 +15,7 @@ function KitchenApp() {
   const [pageIndex, setPageIndex] = useState(0);
   const [manageOpen, setManageOpen] = useState(false);
   const [pinPrompt, setPinPrompt] = useState(false);
+  const [idagEditing, setIdagEditing] = useState(false);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const requestManage = () => setPinPrompt(true);
@@ -87,9 +88,14 @@ function KitchenApp() {
       <SwipePager
         activeIndex={pageIndex}
         onIndexChange={setPageIndex}
+        swipeEnabled={!idagEditing}
         pages={[
           { id: "week", label: "Veckans schema", content: <WeekView /> },
-          { id: "idag", label: "Idag", content: <IdagView /> },
+          {
+            id: "idag",
+            label: "Idag",
+            content: <IdagView onEditingChange={setIdagEditing} />,
+          },
           { id: "todos", label: "Att göra", content: <TodoView /> },
         ]}
       />

@@ -1,16 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IdagWidgetGrid } from "@/components/idag/IdagWidgetGrid";
 import { ManagePinGate } from "@/components/ManagePinGate";
 import { useFamilyStore, EBBE_ID } from "@/hooks/useFamilyStore";
 
-export function IdagView() {
+export function IdagView({
+  onEditingChange,
+}: {
+  onEditingChange?: (editing: boolean) => void;
+} = {}) {
   const {
     ready,
     people,
-    idagLayout,
     idagLayoutLocked,
+    getIdagLayout,
     saveIdagLayout,
     saveIdagLayoutLocked,
   } = useFamilyStore();
@@ -25,6 +29,12 @@ export function IdagView() {
     ? selectedChildId
     : defaultChildId;
   const child = children.find((p) => p.id === personId) ?? children[0];
+  const layout = getIdagLayout(personId);
+
+  useEffect(() => {
+    onEditingChange?.(editing);
+    return () => onEditingChange?.(false);
+  }, [editing, onEditingChange]);
 
   const requestOrdna = () => {
     if (idagLayoutLocked) {
@@ -69,15 +79,15 @@ export function IdagView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-      <div className="flex flex-col items-center gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain">
+      <div className="flex shrink-0 flex-col items-center gap-3">
         <div className="text-center">
           <h2 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
             Idag
           </h2>
           <p className="text-sm font-medium text-[var(--ink-muted)]">
             {editing
-              ? "Dra, ändra storlek eller lägg till widgets"
+              ? `Ordnar widgets för ${child?.name ?? "barn"}`
               : idagLayoutLocked
                 ? "Widgetlayouten är låst"
                 : "Skärmtid, middag, nästa och rutiner"}
@@ -173,10 +183,11 @@ export function IdagView() {
       </div>
 
       <IdagWidgetGrid
-        layout={idagLayout}
+        key={personId}
+        layout={layout}
         child={child}
         editing={editing}
-        onChange={(next) => void saveIdagLayout(next)}
+        onChange={(next) => void saveIdagLayout(personId, next)}
       />
     </div>
   );

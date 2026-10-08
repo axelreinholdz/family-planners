@@ -12,12 +12,15 @@ interface SwipePagerProps {
   pages: { id: string; label: string; content: ReactNode }[];
   activeIndex: number;
   onIndexChange: (index: number) => void;
+  /** When false, horizontal swipe between pages is disabled (e.g. while rearranging widgets). */
+  swipeEnabled?: boolean;
 }
 
 export function SwipePager({
   pages,
   activeIndex,
   onIndexChange,
+  swipeEnabled = true,
 }: SwipePagerProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -39,9 +42,16 @@ export function SwipePager({
     return () => window.removeEventListener("resize", onResize);
   }, [activeIndex, scrollToIndex]);
 
+  useEffect(() => {
+    if (!swipeEnabled) {
+      setDragging(false);
+      scrollToIndex(activeIndex, false);
+    }
+  }, [swipeEnabled, activeIndex, scrollToIndex]);
+
   const handleScroll = () => {
     const el = scrollerRef.current;
-    if (!el || dragging) return;
+    if (!el || dragging || !swipeEnabled) return;
     const index = Math.round(el.scrollLeft / el.clientWidth);
     if (index !== activeIndex && index >= 0 && index < pages.length) {
       onIndexChange(index);
@@ -52,19 +62,35 @@ export function SwipePager({
     <div className="flex min-h-0 flex-1 flex-col">
       <div
         ref={scrollerRef}
-        className="flex min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain"
-        style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "none" }}
+        className={`flex min-h-0 flex-1 overflow-y-hidden overscroll-x-contain ${
+          swipeEnabled
+            ? "snap-x snap-mandatory overflow-x-auto"
+            : "overflow-x-hidden"
+        }`}
+        style={{
+          WebkitOverflowScrolling: swipeEnabled ? "touch" : "auto",
+          scrollbarWidth: "none",
+          touchAction: swipeEnabled ? undefined : "pan-y",
+        }}
         onScroll={handleScroll}
-        onTouchStart={() => setDragging(true)}
-        onTouchEnd={() => {
-          setDragging(false);
-          handleScroll();
-        }}
-        onMouseDown={() => setDragging(true)}
-        onMouseUp={() => {
-          setDragging(false);
-          handleScroll();
-        }}
+        onTouchStart={swipeEnabled ? () => setDragging(true) : undefined}
+        onTouchEnd={
+          swipeEnabled
+            ? () => {
+                setDragging(false);
+                handleScroll();
+              }
+            : undefined
+        }
+        onMouseDown={swipeEnabled ? () => setDragging(true) : undefined}
+        onMouseUp={
+          swipeEnabled
+            ? () => {
+                setDragging(false);
+                handleScroll();
+              }
+            : undefined
+        }
       >
         {pages.map((page) => (
           <section

@@ -299,17 +299,24 @@ export function resizeWidget(
   });
 }
 
-/** How many rows the board should render (includes trailing empty rows while editing). */
+/**
+ * How many rows the board should render.
+ * Viewing: only rows occupied by widgets (no empty filler).
+ * Editing: at least IDAG_GRID_MIN_ROWS plus optional trailing empty rows for drops.
+ */
 export function idagGridRowCount(
   layout: IdagWidgetPlacement[],
-  extraEmptyRows = 0,
+  options: { editing?: boolean; extraEmptyRows?: number } = {},
 ): number {
-  let max = IDAG_GRID_MIN_ROWS;
+  const editing = Boolean(options.editing);
+  const extraEmptyRows = options.extraEmptyRows ?? 0;
+  let occupied = 0;
   for (const placement of layout) {
     const rect = placementRect(placement);
-    max = Math.max(max, rect.row + rect.rows);
+    occupied = Math.max(occupied, rect.row + rect.rows);
   }
-  return max + extraEmptyRows;
+  if (!editing) return Math.max(occupied, layout.length > 0 ? 1 : 0);
+  return Math.max(occupied, IDAG_GRID_MIN_ROWS) + extraEmptyRows;
 }
 
 /** Pack widgets without positions into non-overlapping cells (legacy migration). */
@@ -613,6 +620,59 @@ export function normalizeIdagLayout(input: unknown): IdagWidgetPlacement[] {
   if (draft.length === 0) return defaultIdagLayout();
 
   return packIdagLayout(draft);
+}
+
+/** Legacy shared layout key used while migrating array → per-child map. */
+export const IDAG_LAYOUT_LEGACY_KEY = "";
+
+/**
+ * Normalize per-child layouts.
+ * Accepts a map `{ [personId]: placements[] }` or a legacy shared array.
+ */
+export function normalizeIdagLayouts(
+  input: unknown,
+): Record<string, IdagWidgetPlacement[]> {
+  if (input === undefined || input === null) return {};
+  if (Array.isArray(input)) {
+    return { [IDAG_LAYOUT_LEGACY_KEY]: normalizeIdagLayout(input) };
+  }
+  if (typeof input !== "object") return {};
+
+  const result: Record<string, IdagWidgetPlacement[]> = {};
+  for (const [personId, layout] of Object.entries(
+    input as Record<string, unknown>,
+  )) {
+    if (typeof personId !== "string") continue;
+    result[personId] = normalizeIdagLayout(layout);
+  }
+  return result;
+}
+
+export function getIdagLayoutForPerson(
+  layouts: Record<string, IdagWidgetPlacement[]>,
+  personId: string,
+): IdagWidgetPlacement[] {
+  if (Object.prototype.hasOwnProperty.call(layouts, personId)) {
+    return layouts[personId]!;
+  }
+  if (Object.prototype.hasOwnProperty.call(layouts, IDAG_LAYOUT_LEGACY_KEY)) {
+    return layouts[IDAG_LAYOUT_LEGACY_KEY]!;
+  }
+  return defaultIdagLayout();
+}
+
+/** Upsert one child's layout; drops the legacy shared key once a real child is saved. */
+export function setIdagLayoutForPerson(
+  layouts: Record<string, IdagWidgetPlacement[]>,
+  personId: string,
+  layout: IdagWidgetPlacement[],
+): Record<string, IdagWidgetPlacement[]> {
+  const next: Record<string, IdagWidgetPlacement[]> = { ...layouts };
+  next[personId] = normalizeIdagLayout(layout);
+  if (personId !== IDAG_LAYOUT_LEGACY_KEY) {
+    delete next[IDAG_LAYOUT_LEGACY_KEY];
+  }
+  return next;
 }
 
 export function availablePhase1Types(

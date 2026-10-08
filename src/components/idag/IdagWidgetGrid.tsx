@@ -162,7 +162,7 @@ function GridSlot({
     <div
       ref={setNodeRef}
       aria-hidden={!editing}
-      className={`aspect-square rounded-2xl transition ${
+      className={`h-full min-h-0 w-full rounded-2xl transition ${
         editing
           ? isOver && valid
             ? "bg-[var(--accent)]/25 ring-2 ring-[var(--accent)]"
@@ -214,13 +214,15 @@ function DraggableWidgetCard({
     transform: CSS.Translate.toString(transform),
     zIndex: isDragging ? 30 : 10,
     opacity: isDragging ? 0.35 : 1,
+    alignSelf: "stretch" as const,
+    justifySelf: "stretch" as const,
   };
 
   return (
     <section
       ref={setNodeRef}
       style={style}
-      className={`flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white/90 shadow-sm ring-1 ring-black/5 ${
+      className={`flex h-full min-h-0 w-full flex-col self-stretch overflow-hidden rounded-3xl bg-white/90 shadow-sm ring-1 ring-black/5 ${
         compact ? "p-2.5" : "p-4"
       } ${editing ? "ring-[var(--accent)]/40" : ""}`}
     >
@@ -325,7 +327,11 @@ export function IdagWidgetGrid({
 
   const available = useMemo(() => availablePhase1Types(layout), [layout]);
   const rowCount = useMemo(
-    () => idagGridRowCount(layout, editing ? 2 : 0),
+    () =>
+      idagGridRowCount(layout, {
+        editing,
+        extraEmptyRows: editing ? 2 : 0,
+      }),
     [layout, editing],
   );
 
@@ -409,7 +415,7 @@ export function IdagWidgetGrid({
   const showBoard = editing || layout.length > 0;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className={`flex flex-col gap-3 ${editing ? "" : "min-h-0"}`}>
       {editing && available.length > 0 ? (
         <div className="flex justify-end">
           <button
@@ -434,12 +440,24 @@ export function IdagWidgetGrid({
           onDragCancel={handleDragCancel}
         >
           <div
-            className="grid gap-3"
+            className="grid w-full gap-3"
             style={{
               gridTemplateColumns: `repeat(${IDAG_GRID_COLUMNS}, minmax(0, 1fr))`,
-              gridTemplateRows: `repeat(${rowCount}, auto)`,
+              // Equal row fracs + board aspect ⇒ square cells for every size (S–XL).
+              gridTemplateRows:
+                rowCount > 0
+                  ? `repeat(${rowCount}, minmax(0, 1fr))`
+                  : undefined,
+              aspectRatio:
+                rowCount > 0
+                  ? `${IDAG_GRID_COLUMNS} / ${rowCount}`
+                  : undefined,
             }}
           >
+            {/*
+              Slots + stretched widgets share the same cell geometry in view and Ordna.
+              Viewing uses content row count only (no empty filler board → no needless scroll).
+            */}
             {slots.map((cell) => (
               <GridSlot
                 key={slotId(cell.col, cell.row)}
