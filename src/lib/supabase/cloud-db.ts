@@ -9,6 +9,7 @@ import {
   weekAnchorsBetween,
 } from "@/lib/recurring";
 import { todayKey } from "@/lib/dates";
+import { normalizeIdagLayout } from "@/lib/idagLayout";
 import { compareRoutines } from "@/lib/routines";
 import {
   buildSeedFamilyData,
@@ -22,6 +23,7 @@ import type {
   DinnerPlan,
   Event,
   FamilyData,
+  IdagWidgetPlacement,
   Person,
   RecurringTemplate,
   Routine,
@@ -92,6 +94,7 @@ function sortPayload(payload: FamilyData) {
   payload.calendarSubscriptions.sort((a, b) =>
     a.name.localeCompare(b.name, "sv"),
   );
+  payload.idagLayout = normalizeIdagLayout(payload.idagLayout);
 }
 
 export function clearCloudCache() {
@@ -350,6 +353,12 @@ export async function cloudApplyCalendarSubscriptionEvents(
       if (eventIdx >= 0) data.events[eventIdx] = event;
       else data.events.push(event);
     }
+  });
+}
+
+export async function cloudPutIdagLayout(layout: IdagWidgetPlacement[]) {
+  await update((data) => {
+    data.idagLayout = normalizeIdagLayout(layout);
   });
 }
 

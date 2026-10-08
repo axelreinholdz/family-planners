@@ -30,6 +30,7 @@ import {
   newId,
   putCalendarSubscription,
   putEvent,
+  putIdagLayout,
   putPerson,
   putRecurringTemplate,
   putRoutine,
@@ -41,6 +42,7 @@ import {
   saveDinnerMenu,
 } from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
+import { defaultIdagLayout, normalizeIdagLayout } from "@/lib/idagLayout";
 import {
   EBBE_ID,
   routineProgressId,
@@ -53,6 +55,7 @@ import type {
   DinnerPlan,
   Event,
   IconKey,
+  IdagWidgetPlacement,
   Person,
   PersonRole,
   RecurringTemplate,
@@ -75,6 +78,7 @@ interface FamilyStoreValue {
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
+  idagLayout: IdagWidgetPlacement[];
   refresh: () => Promise<void>;
   savePerson: (person: Person) => Promise<void>;
   createPerson: (input: {
@@ -143,6 +147,7 @@ interface FamilyStoreValue {
   syncAllCalendarSubscriptions: (options?: {
     force?: boolean;
   }) => Promise<void>;
+  saveIdagLayout: (layout: IdagWidgetPlacement[]) => Promise<void>;
   resetData: () => Promise<void>;
 }
 
@@ -168,6 +173,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
   const [calendarSubscriptions, setCalendarSubscriptions] = useState<
     CalendarSubscription[]
   >([]);
+  const [idagLayout, setIdagLayout] = useState<IdagWidgetPlacement[]>(() =>
+    defaultIdagLayout(),
+  );
 
   const applyData = useCallback(
     (data: Awaited<ReturnType<typeof loadAll>>) => {
@@ -181,6 +189,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRoutineProgress(data.routineProgress);
       setRecurringTemplates(data.recurringTemplates);
       setCalendarSubscriptions(data.calendarSubscriptions ?? []);
+      setIdagLayout(normalizeIdagLayout(data.idagLayout));
       setReady(true);
     },
     [],
@@ -750,6 +759,19 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const saveIdagLayout = useCallback(
+    async (layout: IdagWidgetPlacement[]) => {
+      const normalized = normalizeIdagLayout(layout);
+      setIdagLayout(normalized);
+      try {
+        await putIdagLayout(normalized);
+      } catch {
+        await refresh();
+      }
+    },
+    [refresh],
+  );
+
   const resetData = useCallback(async () => {
     await resetToSeed();
     await refresh();
@@ -768,6 +790,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routineProgress,
       recurringTemplates,
       calendarSubscriptions,
+      idagLayout,
       refresh,
       savePerson,
       createPerson,
@@ -804,6 +827,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       removeCalendarSubscription,
       syncCalendarSubscription,
       syncAllCalendarSubscriptions,
+      saveIdagLayout,
       resetData,
     }),
     [
@@ -818,6 +842,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routineProgress,
       recurringTemplates,
       calendarSubscriptions,
+      idagLayout,
       refresh,
       savePerson,
       createPerson,
@@ -854,6 +879,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       removeCalendarSubscription,
       syncCalendarSubscription,
       syncAllCalendarSubscriptions,
+      saveIdagLayout,
       resetData,
     ],
   );

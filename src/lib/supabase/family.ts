@@ -13,6 +13,7 @@ import {
   eventsFromTemplatesForWeeks,
   weekAnchorsBetween,
 } from "@/lib/recurring";
+import { defaultIdagLayout, normalizeIdagLayout } from "@/lib/idagLayout";
 import { normalizeRoutine } from "@/lib/routines";
 import type { FamilyData } from "@/lib/types";
 
@@ -32,6 +33,7 @@ export function emptyFamilyData(): FamilyData {
     routineProgress: [],
     recurringTemplates: [],
     calendarSubscriptions: [],
+    idagLayout: defaultIdagLayout(),
   };
 }
 
@@ -69,6 +71,7 @@ export function buildSeedFamilyData(): FamilyData {
     routineProgress: [],
     recurringTemplates,
     calendarSubscriptions: [],
+    idagLayout: defaultIdagLayout(),
   };
 }
 
@@ -252,5 +255,6 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
     recurringTemplates: partial.recurringTemplates ?? base.recurringTemplates,
     calendarSubscriptions:
       partial.calendarSubscriptions ?? base.calendarSubscriptions,
+    idagLayout: normalizeIdagLayout(partial.idagLayout),
   };
 }

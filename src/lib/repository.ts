@@ -10,6 +10,7 @@ import type {
   DinnerPlan,
   Event,
   FamilyData,
+  IdagWidgetPlacement,
   Person,
   RecurringTemplate,
   Routine,
@@ -154,6 +155,11 @@ export async function applyCalendarSubscriptionEvents(
     nextEvents,
     deleteIds,
   );
+}
+
+export async function putIdagLayout(layout: IdagWidgetPlacement[]) {
+  if (cloudMode) return cloud.cloudPutIdagLayout(layout);
+  return local.putIdagLayout(layout);
 }
 
 export async function applyTemplatesForWeek(weekAnchor?: Date) {

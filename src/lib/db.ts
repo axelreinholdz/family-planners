@@ -7,6 +7,7 @@ import {
   reconcileTemplateEvents,
   weekAnchorsBetween,
 } from "./recurring";
+import { defaultIdagLayout, normalizeIdagLayout } from "./idagLayout";
 import { compareRoutines, normalizeRoutine } from "./routines";
 import {
   buildSeedEvents,
@@ -24,6 +25,7 @@ import type {
   CalendarSubscription,
   DinnerPlan,
   Event,
+  IdagWidgetPlacement,
   Person,
   RecurringTemplate,
   Routine,
@@ -32,6 +34,8 @@ import type {
   ScreenTimeSettings,
   Todo,
 } from "./types";
+
+const IDAG_LAYOUT_META_KEY = "idagLayout";
 
 interface FamilyPlannerDB extends DBSchema {
   meta: {
@@ -356,6 +360,18 @@ async function ensureSeeded() {
   await applyAllTemplateSpans();
 }
 
+async function readIdagLayout(
+  db: IDBPDatabase<FamilyPlannerDB>,
+): Promise<IdagWidgetPlacement[]> {
+  const raw = await db.get("meta", IDAG_LAYOUT_META_KEY);
+  if (typeof raw !== "string" || !raw) return defaultIdagLayout();
+  try {
+    return normalizeIdagLayout(JSON.parse(raw) as unknown);
+  } catch {
+    return defaultIdagLayout();
+  }
+}
+
 export async function loadAll(): Promise<{
   people: Person[];
   events: Event[];
@@ -367,6 +383,7 @@ export async function loadAll(): Promise<{
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
+  idagLayout: IdagWidgetPlacement[];
 }> {
   await ensureSeeded();
   const db = await getDb();
@@ -381,6 +398,7 @@ export async function loadAll(): Promise<{
     routineProgress,
     recurringTemplates,
     calendarSubscriptions,
+    idagLayout,
   ] = await Promise.all([
     db.getAll("people"),
     db.getAll("events"),
@@ -392,6 +410,7 @@ export async function loadAll(): Promise<{
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
     db.getAll("calendarSubscriptions"),
+    readIdagLayout(db),
   ]);
   people.sort((a, b) => a.sortOrder - b.sortOrder);
   todos.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -410,6 +429,7 @@ export async function loadAll(): Promise<{
     routineProgress,
     recurringTemplates,
     calendarSubscriptions,
+    idagLayout,
   };
 }
 
@@ -606,6 +626,12 @@ export async function putCalendarSubscription(
   await db.put("calendarSubscriptions", subscription);
 }
 
+export async function putIdagLayout(layout: IdagWidgetPlacement[]) {
+  const db = await getDb();
+  const normalized = normalizeIdagLayout(layout);
+  await db.put("meta", JSON.stringify(normalized), IDAG_LAYOUT_META_KEY);
+}
+
 export async function deleteCalendarSubscription(id: string) {
   const db = await getDb();
   const events = await db.getAll("events");
@@ -681,6 +707,9 @@ export async function resetToSeed() {
       tx.objectStore("recurringTemplates").put(row),
     ),
     tx.objectStore("meta").put(true, "seeded"),
+    tx
+      .objectStore("meta")
+      .put(JSON.stringify(defaultIdagLayout()), IDAG_LAYOUT_META_KEY),
     tx.done,
   ]);
   await applyAllTemplateSpans();

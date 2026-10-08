@@ -127,6 +127,41 @@ export interface DinnerPlan {
   title: string;
 }
 
+/** Phase 1 Idag widgets. */
+export type IdagWidgetType =
+  | "screenTime"
+  | "dinner"
+  | "nextEvents"
+  | "routines";
+
+/**
+ * Widget footprint on the 8-column Idag grid (iOS/Android-style).
+ * S=1/8, M=2/8, L=4/8 (½), XL=full row or full column.
+ */
+export type IdagWidgetSize = "S" | "M" | "L" | "XL";
+
+/** XL only: span the full row, or a tall full column. */
+export type IdagWidgetOrientation = "horizontal" | "vertical";
+
+/** @deprecated Migrated to IdagWidgetSize. */
+export type IdagWidgetWidth = "half" | "full";
+
+/** @deprecated Migrated to IdagWidgetSize. */
+export type IdagWidgetHeight = IdagWidgetSize;
+
+export interface IdagWidgetPlacement {
+  id: string;
+  type: IdagWidgetType;
+  size: IdagWidgetSize;
+  /** Used when size is XL. Defaults to horizontal. */
+  orientation?: IdagWidgetOrientation;
+  /** Top-left column on the 8-col snap grid (0–7). */
+  col: number;
+  /** Top-left row on the snap grid (0+). */
+  row: number;
+  sortOrder: number;
+}
+
 export interface FamilyData {
   people: Person[];
   events: Event[];
@@ -138,4 +173,5 @@ export interface FamilyData {
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
+  idagLayout: IdagWidgetPlacement[];
 }
