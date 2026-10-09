@@ -20,40 +20,41 @@ export function SchoolLunchWidget({ child }: { child: Person | undefined }) {
   useEffect(() => {
     if (!ready || !personId || !feed?.enabled) return;
     void syncSchoolLunch(personId);
-  }, [ready, personId, feed?.id, feed?.enabled, feed?.schoolSlug, syncSchoolLunch]);
+  }, [
+    ready,
+    personId,
+    feed?.id,
+    feed?.enabled,
+    feed?.schoolSlug,
+    syncSchoolLunch,
+  ]);
 
-  const primary = useMemo(() => {
-    if (!feed) return "Ingen skola vald";
-    if (feed.lastError && !day) return "Kunde inte hämta meny";
-    if (!day || day.dishes.length === 0) return "Ingen meny idag";
-    return day.dishes[0]!;
+  const dishes = useMemo(() => {
+    if (!feed) return ["Ingen skola vald"];
+    if (feed.lastError && !day) return ["Kunde inte hämta meny"];
+    if (!day || day.dishes.length === 0) return ["Ingen meny idag"];
+    return day.dishes;
   }, [feed, day]);
 
-  const secondary =
-    day && day.dishes.length > 1 ? day.dishes.slice(1).join(" · ") : null;
-
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <div className="mb-3 flex shrink-0 items-end justify-between gap-3">
-        <h3 className="font-display text-xl font-bold text-[var(--ink)]">
-          Skolmat
-        </h3>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col justify-center gap-1 overflow-hidden">
-        <p
-          className="line-clamp-2 font-display text-lg font-bold leading-snug text-[var(--ink)]"
-          title={primary}
-        >
-          {primary}
-        </p>
-        {secondary ? (
+    <div className="flex h-full min-h-0 flex-col justify-center overflow-hidden">
+      <h3 className="mb-1 shrink-0 font-display text-xl font-bold leading-none text-[var(--ink)]">
+        Skolmat
+      </h3>
+      <div className="flex min-h-0 min-w-0 flex-col justify-center gap-0.5 overflow-hidden">
+        {dishes.map((dish, index) => (
           <p
-            className="line-clamp-2 text-sm font-medium leading-snug text-[var(--ink-muted)]"
-            title={secondary}
+            key={`${index}-${dish}`}
+            title={dish}
+            className={
+              index === 0
+                ? "truncate font-display text-sm font-bold leading-tight text-[var(--ink)]"
+                : "truncate text-xs font-medium leading-tight text-[var(--ink-muted)]"
+            }
           >
-            {secondary}
+            {dish}
           </p>
-        ) : null}
+        ))}
       </div>
     </div>
   );

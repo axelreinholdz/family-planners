@@ -27,15 +27,6 @@ export function TodoView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="text-center">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
-          Att göra
-        </h2>
-        <p className="text-sm font-medium text-[var(--ink-muted)]">
-          Familjens gemensamma lista
-        </p>
-      </div>
-
       <form
         onSubmit={onSubmit}
         className="flex gap-2 rounded-2xl bg-white/80 p-2 shadow-sm ring-1 ring-black/5"

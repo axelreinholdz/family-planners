@@ -223,14 +223,6 @@ export function WeekView() {
         >
           ← Förra
         </button>
-        <div className="text-center">
-          <h2 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
-            Veckans schema
-          </h2>
-          <p className="text-sm font-medium text-[var(--ink-muted)]">
-            {weekRangeLabel(weekAnchor)}
-          </p>
-        </div>
         <div className="flex gap-2">
           <button
             type="button"

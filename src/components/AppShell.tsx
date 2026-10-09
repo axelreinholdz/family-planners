@@ -9,7 +9,7 @@ import { TodoView } from "@/components/TodoView";
 import { WeekView } from "@/components/WeekView";
 import { FamilyStoreProvider } from "@/hooks/useFamilyStore";
 
-const PAGE_LABELS = ["Vecka", "Idag", "Att göra"] as const;
+const PAGE_LABELS = ["Veckans Schema", "Idag", "Att göra"] as const;
 
 function KitchenApp() {
   const [pageIndex, setPageIndex] = useState(0);
@@ -70,7 +70,7 @@ function KitchenApp() {
         </button>
 
         <h1 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
-          {PAGE_LABELS[pageIndex] ?? "Vecka"}
+          {PAGE_LABELS[pageIndex] ?? "Veckans Schema"}
         </h1>
 
         <button
@@ -89,7 +89,7 @@ function KitchenApp() {
         onIndexChange={setPageIndex}
         swipeEnabled={!idagEditing}
         pages={[
-          { id: "week", label: "Veckans schema", content: <WeekView /> },
+          { id: "week", label: "Veckans Schema", content: <WeekView /> },
           {
             id: "idag",
             label: "Idag",
