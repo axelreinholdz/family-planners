@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { ProgressRing } from "@/components/idag/widgets/ProgressRing";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { formatClock } from "@/lib/dates";
-import { getIconEmoji } from "@/lib/icons";
 import { remainingSeconds, usedSecondsTotal } from "@/lib/screenTime";
 import type { Person } from "@/lib/types";
 
@@ -64,55 +63,41 @@ export function ScreenTimeWidget({ child }: { child: Person | undefined }) {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center gap-3">
-      <div className="flex items-center gap-3 self-start">
-        <span
-          className="flex h-12 w-12 items-center justify-center rounded-full text-2xl"
-          style={{ backgroundColor: `${child?.color ?? "#2A9D8F"}33` }}
-        >
-          {child?.avatar ?? getIconEmoji("boy")}
-        </span>
-        <div>
-          <p className="font-display text-xl font-bold text-[var(--ink)]">
-            Skärmtid
-          </p>
-          <p className="text-sm font-semibold text-[var(--ink-muted)]">
-            {child?.name ?? "Barn"}
-          </p>
-        </div>
+    <div className="flex h-full min-h-0 flex-col gap-1.5">
+      <div className="mb-3 flex shrink-0 items-end justify-between gap-3">
+        <h3 className="font-display text-xl font-bold text-[var(--ink)]">
+          Skärmtid
+        </h3>
       </div>
 
-      <div className="relative">
-        <ProgressRing
-          progress={ringProgress}
-          color={exhausted ? "#c45c4a" : (child?.color ?? "#2A9D8F")}
-        />
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <p className="font-display text-4xl font-bold tabular-nums text-[var(--ink)]">
-            {formatClock(remaining)}
-          </p>
-          <p className="text-xs font-semibold text-[var(--ink-muted)]">
-            {exhausted ? "Slut för idag" : "kvar idag"}
-          </p>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
+        <div className="relative flex w-full max-w-[140px] min-h-0 flex-1 items-center justify-center">
+          <ProgressRing
+            progress={ringProgress}
+            color={exhausted ? "#c45c4a" : (child?.color ?? "#2A9D8F")}
+          />
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+            <p className="font-display text-2xl font-bold tabular-nums leading-none text-[var(--ink)]">
+              {formatClock(remaining)}
+            </p>
+            <p className="mt-0.5 text-[10px] font-semibold text-[var(--ink-muted)]">
+              {exhausted ? "Slut för idag" : "kvar idag"}
+            </p>
+          </div>
         </div>
       </div>
-
-      <p className="text-sm font-medium text-[var(--ink-muted)]">
-        Använt {formatClock(used)} av{" "}
-        {day?.allowanceMinutes ?? settings?.dailyMinutes ?? 45} min
-      </p>
 
       {!enabled ? (
-        <p className="text-sm font-semibold text-[var(--ink-muted)]">
+        <p className="shrink-0 text-xs font-semibold text-[var(--ink-muted)]">
           Skärmtid är avstängd.
         </p>
       ) : (
-        <div className="flex w-full max-w-xs items-center gap-2">
+        <div className="flex w-full shrink-0 items-center gap-1.5">
           <button
             type="button"
             onClick={() => void adjustScreenTimeUsed(personId, -5)}
             disabled={remaining <= 0}
-            className="tap-target flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/10 disabled:opacity-40"
+            className="tap-target flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/10 disabled:opacity-40"
             aria-label="Dra av 5 minuter"
             title="−5 min"
           >
@@ -122,7 +107,7 @@ export function ScreenTimeWidget({ child }: { child: Person | undefined }) {
             <button
               type="button"
               onClick={() => void stopScreenTime(personId)}
-              className="tap-target min-w-0 flex-1 rounded-2xl bg-[#c45c4a] px-4 py-4 text-lg font-bold text-white"
+              className="tap-target min-w-0 flex-1 rounded-xl bg-[#c45c4a] px-2 py-2.5 text-sm font-bold text-white"
             >
               Stoppa
             </button>
@@ -131,7 +116,7 @@ export function ScreenTimeWidget({ child }: { child: Person | undefined }) {
               type="button"
               disabled={exhausted}
               onClick={() => void startScreenTime(personId)}
-              className="tap-target min-w-0 flex-1 rounded-2xl bg-[var(--accent)] px-4 py-4 text-lg font-bold text-white disabled:opacity-40"
+              className="tap-target min-w-0 flex-1 rounded-xl bg-[var(--accent)] px-2 py-2.5 text-sm font-bold text-white disabled:opacity-40"
             >
               Starta
             </button>
@@ -140,7 +125,7 @@ export function ScreenTimeWidget({ child }: { child: Person | undefined }) {
             type="button"
             onClick={() => void adjustScreenTimeUsed(personId, 5)}
             disabled={used <= 0}
-            className="tap-target flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-2xl font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/10 disabled:opacity-40"
+            className="tap-target flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-bold text-[var(--ink)] shadow-sm ring-1 ring-black/10 disabled:opacity-40"
             aria-label="Lägg tillbaka 5 minuter"
             title="+5 min"
           >

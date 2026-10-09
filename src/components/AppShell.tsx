@@ -51,14 +51,14 @@ function KitchenApp() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <header className="flex items-center justify-between gap-3 px-4 pt-3 sm:px-6">
+      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 pt-3 sm:px-6">
         <button
           type="button"
           onPointerDown={onTitlePointerDown}
           onPointerUp={clearPress}
           onPointerLeave={clearPress}
           onPointerCancel={clearPress}
-          className="text-left"
+          className="justify-self-start text-left"
           aria-label="Family Planners. Håll inne för föräldraläge."
         >
           <p className="font-display text-lg font-bold tracking-tight text-[var(--ink)] sm:text-xl">
@@ -69,20 +69,19 @@ function KitchenApp() {
           </p>
         </button>
 
-        <div className="flex items-center gap-2">
-          <span className="hidden rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-[var(--ink-muted)] ring-1 ring-black/5 sm:inline">
-            {PAGE_LABELS[pageIndex] ?? "Vecka"}
-          </span>
-          <button
-            type="button"
-            onClick={requestManage}
-            aria-label="Öppna föräldraläge"
-            className="tap-target flex h-10 w-10 items-center justify-center rounded-full bg-white/50 text-[var(--ink-faint)] ring-1 ring-black/5"
-            title="Hantera"
-          >
-            ⚙
-          </button>
-        </div>
+        <h1 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
+          {PAGE_LABELS[pageIndex] ?? "Vecka"}
+        </h1>
+
+        <button
+          type="button"
+          onClick={requestManage}
+          aria-label="Öppna föräldraläge"
+          className="tap-target justify-self-end flex h-10 w-10 items-center justify-center rounded-full bg-white/50 text-[var(--ink-faint)] ring-1 ring-black/5"
+          title="Hantera"
+        >
+          ⚙
+        </button>
       </header>
 
       <SwipePager

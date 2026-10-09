@@ -32,11 +32,23 @@ export const IDAG_GRID_MIN_ROWS = 8;
 
 export const IDAG_WIDGET_SIZES: IdagWidgetSize[] = ["S", "M", "L", "XL"];
 
-/** Sizes offered in Ordna — only dinner may use S. */
+/**
+ * Sizes offered in Ordna.
+ * - dinner: none (always 2×1 — width 2, height 1)
+ * - screenTime: none (always M / 2×2)
+ * - routines: none (always XL; only Rad/Kolumn)
+ * - others: M–XL
+ */
 export function allowedSizesForWidget(
   type: IdagWidgetType | IdagWidgetCatalogType,
 ): IdagWidgetSize[] {
-  if (type === "dinner") return IDAG_WIDGET_SIZES;
+  if (
+    type === "routines" ||
+    type === "screenTime" ||
+    type === "dinner"
+  ) {
+    return [];
+  }
   return IDAG_WIDGET_SIZES.filter((size) => size !== "S");
 }
 
@@ -44,8 +56,20 @@ export function clampWidgetSize(
   type: IdagWidgetType | IdagWidgetCatalogType,
   size: IdagWidgetSize,
 ): IdagWidgetSize {
+  if (type === "routines") return "XL";
+  if (type === "screenTime") return "M";
+  // Stored as S; footprint overrides to 2×1 for dinner.
+  if (type === "dinner") return "S";
   const allowed = allowedSizesForWidget(type);
   return allowed.includes(size) ? size : (allowed[0] ?? "M");
+}
+
+/** Whether Ordna shows Rad/Kolumn for this widget. */
+export function widgetShowsOrientation(
+  type: IdagWidgetType | IdagWidgetCatalogType,
+  size: IdagWidgetSize,
+): boolean {
+  return type === "routines" || size === "XL";
 }
 
 export const IDAG_WIDGET_ORIENTATIONS: IdagWidgetOrientation[] = [
@@ -77,18 +101,42 @@ export const IDAG_WIDGET_ORIENTATION_LABELS: Record<
 
 export type IdagWidgetFootprint = { cols: number; rows: number };
 
+/** Optional content metrics for type-specific footprints (e.g. routines). */
+export type IdagFootprintContext = {
+  type?: IdagWidgetType;
+  /** Routine step cards (and similar) that drive column height. */
+  contentUnits?: number;
+};
+
 export function resolveOrientation(
-  placement: Pick<IdagWidgetPlacement, "size" | "orientation">,
+  placement: Pick<IdagWidgetPlacement, "type" | "size" | "orientation">,
 ): IdagWidgetOrientation {
+  if (placement.type === "routines") {
+    return placement.orientation === "vertical" ? "vertical" : "horizontal";
+  }
   if (placement.size !== "XL") return "horizontal";
   return placement.orientation === "vertical" ? "vertical" : "horizontal";
 }
 
-/** Discrete cell footprint on the snap grid. */
+/**
+ * Discrete cell footprint on the snap grid.
+ * Type-specific overrides: dinner 1×2, routines XL rad/kolumn, etc.
+ */
 export function idagWidgetFootprint(
   size: IdagWidgetSize,
   orientation: IdagWidgetOrientation = "horizontal",
+  ctx?: IdagFootprintContext,
 ): IdagWidgetFootprint {
+  if (ctx?.type === "dinner") {
+    return { cols: 2, rows: 1 };
+  }
+  if (ctx?.type === "routines") {
+    if (orientation === "horizontal") return { cols: 8, rows: 2 };
+    const units = Math.max(1, ctx.contentUnits ?? 3);
+    // Placement footprint ≈ content; card itself hugs steps (see IdagWidgetGrid).
+    return { cols: 2, rows: Math.min(14, Math.max(2, units)) };
+  }
+
   switch (size) {
     case "S":
       return { cols: 1, rows: 1 };
@@ -106,8 +154,9 @@ export function idagWidgetFootprint(
 export function idagWidgetColSpan(
   size: IdagWidgetSize,
   orientation: IdagWidgetOrientation = "horizontal",
+  ctx?: IdagFootprintContext,
 ): number {
-  return idagWidgetFootprint(size, orientation).cols;
+  return idagWidgetFootprint(size, orientation, ctx).cols;
 }
 
 export function idagWidgetIsCompact(size: IdagWidgetSize): boolean {
@@ -117,7 +166,9 @@ export function idagWidgetIsCompact(size: IdagWidgetSize): boolean {
 export function idagWidgetPreferVertical(
   size: IdagWidgetSize,
   orientation: IdagWidgetOrientation = "horizontal",
+  type?: IdagWidgetType,
 ): boolean {
+  if (type === "routines") return orientation === "vertical";
   if (size === "XL") return orientation === "vertical";
   return size === "S" || size === "M";
 }
@@ -136,9 +187,26 @@ export function parseSlotId(
 
 type Rect = { col: number; row: number; cols: number; rows: number };
 
-function placementRect(placement: IdagWidgetPlacement): Rect {
+function footprintCtxFor(
+  placement: IdagWidgetPlacement,
+  contentUnitsById?: Record<string, number>,
+): IdagFootprintContext {
+  return {
+    type: placement.type,
+    contentUnits: contentUnitsById?.[placement.id],
+  };
+}
+
+function placementRect(
+  placement: IdagWidgetPlacement,
+  contentUnitsById?: Record<string, number>,
+): Rect {
   const orientation = resolveOrientation(placement);
-  const { cols, rows } = idagWidgetFootprint(placement.size, orientation);
+  const { cols, rows } = idagWidgetFootprint(
+    placement.size,
+    orientation,
+    footprintCtxFor(placement, contentUnitsById),
+  );
   return {
     col: placement.col,
     row: placement.row,
@@ -163,15 +231,19 @@ export function canPlaceAt(
   size: IdagWidgetSize,
   orientation: IdagWidgetOrientation,
   excludeId?: string,
+  ctx?: IdagFootprintContext,
+  contentUnitsById?: Record<string, number>,
 ): boolean {
-  const { cols, rows } = idagWidgetFootprint(size, orientation);
+  const { cols, rows } = idagWidgetFootprint(size, orientation, ctx);
   if (col < 0 || row < 0) return false;
   if (col + cols > IDAG_GRID_COLUMNS) return false;
 
   const candidate: Rect = { col, row, cols, rows };
   for (const placement of layout) {
     if (excludeId && placement.id === excludeId) continue;
-    if (rectsOverlap(candidate, placementRect(placement))) return false;
+    if (rectsOverlap(candidate, placementRect(placement, contentUnitsById))) {
+      return false;
+    }
   }
   return true;
 }
@@ -183,11 +255,24 @@ export function findFirstFit(
   orientation: IdagWidgetOrientation,
   excludeId?: string,
   maxRows = 24,
+  ctx?: IdagFootprintContext,
+  contentUnitsById?: Record<string, number>,
 ): { col: number; row: number } | null {
-  const { cols, rows } = idagWidgetFootprint(size, orientation);
+  const { cols, rows } = idagWidgetFootprint(size, orientation, ctx);
   for (let row = 0; row <= maxRows - rows; row++) {
     for (let col = 0; col <= IDAG_GRID_COLUMNS - cols; col++) {
-      if (canPlaceAt(layout, col, row, size, orientation, excludeId)) {
+      if (
+        canPlaceAt(
+          layout,
+          col,
+          row,
+          size,
+          orientation,
+          excludeId,
+          ctx,
+          contentUnitsById,
+        )
+      ) {
         return { col, row };
       }
     }
@@ -204,19 +289,43 @@ export function findNearestFit(
   orientation: IdagWidgetOrientation,
   excludeId?: string,
   maxRows = 24,
+  ctx?: IdagFootprintContext,
+  contentUnitsById?: Record<string, number>,
 ): { col: number; row: number } | null {
   if (
-    canPlaceAt(layout, preferredCol, preferredRow, size, orientation, excludeId)
+    canPlaceAt(
+      layout,
+      preferredCol,
+      preferredRow,
+      size,
+      orientation,
+      excludeId,
+      ctx,
+      contentUnitsById,
+    )
   ) {
     return { col: preferredCol, row: preferredRow };
   }
 
-  const { cols, rows } = idagWidgetFootprint(size, orientation);
+  const { cols, rows } = idagWidgetFootprint(size, orientation, ctx);
   let best: { col: number; row: number; dist: number } | null = null;
 
   for (let row = 0; row <= maxRows - rows; row++) {
     for (let col = 0; col <= IDAG_GRID_COLUMNS - cols; col++) {
-      if (!canPlaceAt(layout, col, row, size, orientation, excludeId)) continue;
+      if (
+        !canPlaceAt(
+          layout,
+          col,
+          row,
+          size,
+          orientation,
+          excludeId,
+          ctx,
+          contentUnitsById,
+        )
+      ) {
+        continue;
+      }
       const dist =
         Math.abs(col - preferredCol) + Math.abs(row - preferredRow) * 2;
       if (!best || dist < best.dist) {
@@ -233,13 +342,33 @@ export function moveWidgetToCell(
   id: string,
   col: number,
   row: number,
+  contentUnitsById?: Record<string, number>,
 ): IdagWidgetPlacement[] {
   const target = layout.find((p) => p.id === id);
   if (!target) return layout;
   const orientation = resolveOrientation(target);
+  const ctx = footprintCtxFor(target, contentUnitsById);
   const snapped =
-    findNearestFit(layout, col, row, target.size, orientation, id) ??
-    findFirstFit(layout, target.size, orientation, id);
+    findNearestFit(
+      layout,
+      col,
+      row,
+      target.size,
+      orientation,
+      id,
+      24,
+      ctx,
+      contentUnitsById,
+    ) ??
+    findFirstFit(
+      layout,
+      target.size,
+      orientation,
+      id,
+      24,
+      ctx,
+      contentUnitsById,
+    );
   if (!snapped) return layout;
 
   return layout.map((placement) =>
@@ -259,23 +388,41 @@ export function resizeWidget(
   id: string,
   size: IdagWidgetSize,
   orientation?: IdagWidgetOrientation,
+  contentUnitsById?: Record<string, number>,
 ): IdagWidgetPlacement[] {
   const target = layout.find((p) => p.id === id);
   if (!target) return layout;
 
   size = clampWidgetSize(target.type, size);
 
-  const nextOrientation =
-    size === "XL" ? (orientation ?? target.orientation ?? "horizontal") : undefined;
+  const usesOrientation = widgetShowsOrientation(target.type, size);
+  const orient = usesOrientation
+    ? (orientation ?? target.orientation ?? "horizontal")
+    : "horizontal";
 
-  const orient = size === "XL" ? (nextOrientation ?? "horizontal") : "horizontal";
+  const ctx: IdagFootprintContext = {
+    type: target.type,
+    contentUnits: contentUnitsById?.[id],
+  };
 
   let col = target.col;
   let row = target.row;
-  if (!canPlaceAt(layout, col, row, size, orient, id)) {
+  if (
+    !canPlaceAt(layout, col, row, size, orient, id, ctx, contentUnitsById)
+  ) {
     const fit =
-      findNearestFit(layout, col, row, size, orient, id) ??
-      findFirstFit(layout, size, orient, id);
+      findNearestFit(
+        layout,
+        col,
+        row,
+        size,
+        orient,
+        id,
+        24,
+        ctx,
+        contentUnitsById,
+      ) ??
+      findFirstFit(layout, size, orient, id, 24, ctx, contentUnitsById);
     if (!fit) return layout;
     col = fit.col;
     row = fit.row;
@@ -290,7 +437,7 @@ export function resizeWidget(
       row,
       sortOrder: row * IDAG_GRID_COLUMNS + col,
     };
-    if (size === "XL") {
+    if (usesOrientation) {
       next.orientation = orient;
     } else {
       delete next.orientation;
@@ -306,13 +453,17 @@ export function resizeWidget(
  */
 export function idagGridRowCount(
   layout: IdagWidgetPlacement[],
-  options: { editing?: boolean; extraEmptyRows?: number } = {},
+  options: {
+    editing?: boolean;
+    extraEmptyRows?: number;
+    contentUnitsById?: Record<string, number>;
+  } = {},
 ): number {
   const editing = Boolean(options.editing);
   const extraEmptyRows = options.extraEmptyRows ?? 0;
   let occupied = 0;
   for (const placement of layout) {
-    const rect = placementRect(placement);
+    const rect = placementRect(placement, options.contentUnitsById);
     occupied = Math.max(occupied, rect.row + rect.rows);
   }
   if (!editing) return Math.max(occupied, layout.length > 0 ? 1 : 0);
@@ -329,19 +480,42 @@ export function packIdagLayout(
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
   for (const item of sorted) {
-    const orientation = resolveOrientation(item);
+    const size = clampWidgetSize(item.type, item.size);
+    const orientation = resolveOrientation({ ...item, size });
+    const ctx: IdagFootprintContext = { type: item.type };
     const existingCol =
       "col" in item && typeof item.col === "number" ? item.col : undefined;
     const existingRow =
       "row" in item && typeof item.row === "number" ? item.row : undefined;
 
+    const base = {
+      ...item,
+      size,
+      ...(widgetShowsOrientation(item.type, size)
+        ? { orientation }
+        : { orientation: undefined }),
+    };
+    if (!widgetShowsOrientation(item.type, size)) {
+      delete (base as IdagWidgetPlacement).orientation;
+    } else {
+      base.orientation = orientation;
+    }
+
     if (
       existingCol !== undefined &&
       existingRow !== undefined &&
-      canPlaceAt(packed, existingCol, existingRow, item.size, orientation)
+      canPlaceAt(
+        packed,
+        existingCol,
+        existingRow,
+        size,
+        orientation,
+        undefined,
+        ctx,
+      )
     ) {
       packed.push({
-        ...item,
+        ...base,
         col: existingCol,
         row: existingRow,
         sortOrder: existingRow * IDAG_GRID_COLUMNS + existingCol,
@@ -349,11 +523,18 @@ export function packIdagLayout(
       continue;
     }
 
-    const fit = findFirstFit(packed, item.size, orientation);
+    const fit = findFirstFit(
+      packed,
+      size,
+      orientation,
+      undefined,
+      24,
+      ctx,
+    );
     const col = fit?.col ?? 0;
     const row = fit?.row ?? packed.length;
     packed.push({
-      ...item,
+      ...base,
       col,
       row,
       sortOrder: row * IDAG_GRID_COLUMNS + col,
@@ -376,7 +557,7 @@ export const IDAG_WIDGET_CATALOG: IdagWidgetCatalogEntry[] = [
     type: "dinner",
     label: "Middag",
     description: "Dagens rätt från middagsmenyn",
-    defaultSize: "S",
+    defaultSize: "S", // footprint forced to 2×1
     phase: 1,
   },
   {
@@ -470,7 +651,7 @@ export function defaultIdagLayout(): IdagWidgetPlacement[] {
       id: "w-dinner",
       type: "dinner",
       size: "S",
-      col: 3,
+      col: 2,
       row: 0,
       sortOrder: 1,
     },
@@ -546,11 +727,15 @@ export function resolvePlacementSize(
 export function resolvePlacementOrientation(
   record: Record<string, unknown>,
   size: IdagWidgetSize,
+  type?: IdagWidgetType,
 ): IdagWidgetOrientation | undefined {
-  if (size !== "XL") return undefined;
+  const catalogType =
+    type ?? (isWidgetType(record.type) ? record.type : undefined);
+  if (!catalogType || !widgetShowsOrientation(catalogType, size)) {
+    return undefined;
+  }
   if (isOrientation(record.orientation)) return record.orientation;
-  const catalogType = isWidgetType(record.type) ? record.type : undefined;
-  const catalog = catalogType ? catalogEntryFor(catalogType) : undefined;
+  const catalog = catalogEntryFor(catalogType);
   return catalog?.defaultOrientation ?? "horizontal";
 }
 
@@ -588,7 +773,7 @@ export function normalizeIdagLayout(input: unknown): IdagWidgetPlacement[] {
     seen.add(type);
 
     const size = clampWidgetSize(type, resolvePlacementSize(record));
-    const orientation = resolvePlacementOrientation(record, size);
+    const orientation = resolvePlacementOrientation(record, size, type);
     const id =
       typeof record.id === "string" && record.id.trim()
         ? record.id
@@ -685,13 +870,24 @@ export function availablePhase1Types(
 export function addWidgetToLayout(
   layout: IdagWidgetPlacement[],
   type: IdagWidgetType,
+  contentUnitsById?: Record<string, number>,
 ): IdagWidgetPlacement[] {
   if (layout.some((p) => p.type === type)) return layout;
   const entry = catalogEntryFor(type);
-  const size = entry?.defaultSize ?? "M";
-  const orientation =
-    size === "XL" ? (entry?.defaultOrientation ?? "horizontal") : "horizontal";
-  const fit = findFirstFit(layout, size, orientation);
+  const size = clampWidgetSize(type, entry?.defaultSize ?? "M");
+  const orientation = widgetShowsOrientation(type, size)
+    ? (entry?.defaultOrientation ?? "horizontal")
+    : "horizontal";
+  const ctx: IdagFootprintContext = { type };
+  const fit = findFirstFit(
+    layout,
+    size,
+    orientation,
+    undefined,
+    24,
+    ctx,
+    contentUnitsById,
+  );
   if (!fit) return layout;
 
   return [
@@ -700,7 +896,7 @@ export function addWidgetToLayout(
       id: `w-${type}-${Date.now()}`,
       type,
       size,
-      ...(size === "XL" ? { orientation } : {}),
+      ...(widgetShowsOrientation(type, size) ? { orientation } : {}),
       col: fit.col,
       row: fit.row,
       sortOrder: fit.row * IDAG_GRID_COLUMNS + fit.col,

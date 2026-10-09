@@ -24,10 +24,12 @@ export function NextEventsWidget({ child }: { child: Person | undefined }) {
   );
 
   return (
-    <div>
-      <p className="mb-3 text-xs font-bold uppercase tracking-wider text-[var(--ink-muted)]">
-        Nästa för {child?.name ?? "barn"}
-      </p>
+    <div className="flex h-full min-h-0 flex-col overflow-auto">
+      <div className="mb-3 flex shrink-0 items-end justify-between gap-3">
+        <h3 className="font-display text-xl font-bold text-[var(--ink)]">
+          Nästa
+        </h3>
+      </div>
       {current ? (
         <div className="flex items-center gap-3 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 ring-1 ring-[var(--accent)]/30">
           <span className="text-4xl" aria-hidden>

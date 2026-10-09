@@ -13,7 +13,11 @@ export function ProgressRing({
   const offset = circumference * (1 - clamped);
 
   return (
-    <svg width={size} height={size} className="mx-auto -rotate-90">
+    <svg
+      viewBox={`0 0 ${size} ${size}`}
+      className="mx-auto aspect-square h-auto w-full max-h-full max-w-[140px] -rotate-90"
+      aria-hidden
+    >
       <circle
         cx={size / 2}
         cy={size / 2}
