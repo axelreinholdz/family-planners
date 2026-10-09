@@ -31,6 +31,8 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  SchoolLunchDay,
+  SchoolLunchFeed,
   ScreenTimeDay,
   ScreenTimeSettings,
   Todo,
@@ -97,6 +99,12 @@ function sortPayload(payload: FamilyData) {
   payload.calendarSubscriptions.sort((a, b) =>
     a.name.localeCompare(b.name, "sv"),
   );
+  payload.schoolLunchFeeds = payload.schoolLunchFeeds ?? [];
+  payload.schoolLunchDays = payload.schoolLunchDays ?? [];
+  payload.schoolLunchFeeds.sort((a, b) =>
+    a.schoolSlug.localeCompare(b.schoolSlug, "sv"),
+  );
+  payload.schoolLunchDays.sort((a, b) => a.date.localeCompare(b.date));
   payload.idagLayouts = normalizeIdagLayouts(
     payload.idagLayouts ??
       (payload as { idagLayout?: unknown }).idagLayout,
@@ -175,6 +183,12 @@ export async function cloudDeletePerson(id: string) {
     );
     data.calendarSubscriptions = data.calendarSubscriptions.filter(
       (s) => s.personId !== id,
+    );
+    data.schoolLunchFeeds = (data.schoolLunchFeeds ?? []).filter(
+      (f) => f.personId !== id,
+    );
+    data.schoolLunchDays = (data.schoolLunchDays ?? []).filter(
+      (d) => d.personId !== id,
     );
     data.screenTimeSettings = data.screenTimeSettings.filter(
       (s) => s.personId !== id,
@@ -360,6 +374,46 @@ export async function cloudApplyCalendarSubscriptionEvents(
       if (eventIdx >= 0) data.events[eventIdx] = event;
       else data.events.push(event);
     }
+  });
+}
+
+export async function cloudPutSchoolLunchFeed(feed: SchoolLunchFeed) {
+  await update((data) => {
+    data.schoolLunchFeeds = data.schoolLunchFeeds ?? [];
+    const idx = data.schoolLunchFeeds.findIndex((f) => f.id === feed.id);
+    if (idx >= 0) data.schoolLunchFeeds[idx] = feed;
+    else data.schoolLunchFeeds.push(feed);
+  });
+}
+
+export async function cloudDeleteSchoolLunchFeed(id: string) {
+  await update((data) => {
+    const feed = (data.schoolLunchFeeds ?? []).find((f) => f.id === id);
+    data.schoolLunchFeeds = (data.schoolLunchFeeds ?? []).filter(
+      (f) => f.id !== id,
+    );
+    if (feed) {
+      data.schoolLunchDays = (data.schoolLunchDays ?? []).filter(
+        (d) => d.personId !== feed.personId,
+      );
+    }
+  });
+}
+
+export async function cloudApplySchoolLunchSync(
+  feed: SchoolLunchFeed,
+  days: SchoolLunchDay[],
+) {
+  await update((data) => {
+    data.schoolLunchFeeds = data.schoolLunchFeeds ?? [];
+    data.schoolLunchDays = data.schoolLunchDays ?? [];
+    const idx = data.schoolLunchFeeds.findIndex((f) => f.id === feed.id);
+    if (idx >= 0) data.schoolLunchFeeds[idx] = feed;
+    else data.schoolLunchFeeds.push(feed);
+    data.schoolLunchDays = [
+      ...data.schoolLunchDays.filter((d) => d.personId !== feed.personId),
+      ...days,
+    ];
   });
 }
 

@@ -33,6 +33,8 @@ export function emptyFamilyData(): FamilyData {
     routineProgress: [],
     recurringTemplates: [],
     calendarSubscriptions: [],
+    schoolLunchFeeds: [],
+    schoolLunchDays: [],
     idagLayouts: {},
     idagLayoutLocked: false,
   };
@@ -72,6 +74,8 @@ export function buildSeedFamilyData(): FamilyData {
     routineProgress: [],
     recurringTemplates,
     calendarSubscriptions: [],
+    schoolLunchFeeds: [],
+    schoolLunchDays: [],
     idagLayouts: {},
     idagLayoutLocked: false,
   };
@@ -257,6 +261,8 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
     recurringTemplates: partial.recurringTemplates ?? base.recurringTemplates,
     calendarSubscriptions:
       partial.calendarSubscriptions ?? base.calendarSubscriptions,
+    schoolLunchFeeds: partial.schoolLunchFeeds ?? base.schoolLunchFeeds,
+    schoolLunchDays: partial.schoolLunchDays ?? base.schoolLunchDays,
     idagLayouts: normalizeIdagLayouts(
       partial.idagLayouts ??
         (partial as { idagLayout?: unknown }).idagLayout,

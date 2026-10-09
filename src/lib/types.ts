@@ -127,12 +127,37 @@ export interface DinnerPlan {
   title: string;
 }
 
+/** Per-child skolmaten.se feed (school slug saved once; week menu synced). */
+export interface SchoolLunchFeed {
+  id: string;
+  personId: string;
+  /** Stable school slug, e.g. kvibergsskolan-f-3 */
+  schoolSlug: string;
+  /** Channel title from last successful sync. */
+  schoolName?: string;
+  enabled: boolean;
+  lastSyncedAt?: string; // ISO
+  lastError?: string;
+  /** ISO week of last successful sync, e.g. 2026-W41 */
+  weekKey?: string;
+}
+
+/** Cached school lunch for one calendar day. */
+export interface SchoolLunchDay {
+  /** `${personId}:${date}` */
+  id: string;
+  personId: string;
+  date: string; // YYYY-MM-DD
+  dishes: string[];
+}
+
 /** Phase 1 Idag widgets. */
 export type IdagWidgetType =
   | "screenTime"
   | "dinner"
   | "nextEvents"
-  | "routines";
+  | "routines"
+  | "schoolLunch";
 
 /**
  * Widget footprint on the 8-column Idag grid (iOS/Android-style).
@@ -173,6 +198,8 @@ export interface FamilyData {
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
+  schoolLunchFeeds: SchoolLunchFeed[];
+  schoolLunchDays: SchoolLunchDay[];
   /** Widget grid layout per child person id. */
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   /** When true, Ordna requires the Hantera PIN. */

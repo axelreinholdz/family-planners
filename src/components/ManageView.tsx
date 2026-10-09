@@ -8,6 +8,7 @@ import { ManageDinners } from "@/components/ManageDinners";
 import { ManageModal } from "@/components/ManageModal";
 import { ManageRecurring } from "@/components/ManageRecurring";
 import { ManageRoutines } from "@/components/ManageRoutines";
+import { ManageSchoolLunch } from "@/components/ManageSchoolLunch";
 import { ManageScreenTime } from "@/components/ManageScreenTime";
 import { MicButton } from "@/components/MicButton";
 import { defaultPersonId, PersonTabs } from "@/components/PersonTabs";
@@ -47,6 +48,7 @@ type Tab =
   | "calendars"
   | "routines"
   | "dinners"
+  | "schoolLunch"
   | "screentime"
   | "people"
   | "settings";
@@ -203,6 +205,7 @@ export function ManageView({ onBack }: ManageViewProps) {
             ["calendars", "Kalendrar"],
             ["routines", "Rutiner"],
             ["dinners", "Middagsmeny"],
+            ["schoolLunch", "Skolmat"],
             ["screentime", "Skärmtid"],
             ["people", "Personer"],
             ["settings", "Inställningar"],
@@ -408,6 +411,8 @@ export function ManageView({ onBack }: ManageViewProps) {
       {tab === "routines" ? <ManageRoutines /> : null}
 
       {tab === "dinners" ? <ManageDinners /> : null}
+
+      {tab === "schoolLunch" ? <ManageSchoolLunch /> : null}
 
       {tab === "screentime" ? <ManageScreenTime /> : null}
 

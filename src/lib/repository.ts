@@ -15,6 +15,8 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  SchoolLunchDay,
+  SchoolLunchFeed,
   ScreenTimeDay,
   ScreenTimeSettings,
   Todo,
@@ -155,6 +157,24 @@ export async function applyCalendarSubscriptionEvents(
     nextEvents,
     deleteIds,
   );
+}
+
+export async function putSchoolLunchFeed(feed: SchoolLunchFeed) {
+  if (cloudMode) return cloud.cloudPutSchoolLunchFeed(feed);
+  return local.putSchoolLunchFeed(feed);
+}
+
+export async function deleteSchoolLunchFeed(id: string) {
+  if (cloudMode) return cloud.cloudDeleteSchoolLunchFeed(id);
+  return local.deleteSchoolLunchFeed(id);
+}
+
+export async function applySchoolLunchSync(
+  feed: SchoolLunchFeed,
+  days: SchoolLunchDay[],
+) {
+  if (cloudMode) return cloud.cloudApplySchoolLunchSync(feed, days);
+  return local.applySchoolLunchSync(feed, days);
 }
 
 export async function putIdagLayout(

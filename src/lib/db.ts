@@ -30,6 +30,8 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  SchoolLunchDay,
+  SchoolLunchFeed,
   ScreenTimeDay,
   ScreenTimeSettings,
   Todo,
@@ -84,10 +86,18 @@ interface FamilyPlannerDB extends DBSchema {
     key: string;
     value: CalendarSubscription;
   };
+  schoolLunchFeeds: {
+    key: string;
+    value: SchoolLunchFeed;
+  };
+  schoolLunchDays: {
+    key: string;
+    value: SchoolLunchDay;
+  };
 }
 
 const DB_NAME = "family-planners";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 let dbPromise: Promise<IDBPDatabase<FamilyPlannerDB>> | null = null;
 
@@ -131,6 +141,14 @@ function getDb() {
         if (oldVersion < 4) {
           if (!db.objectStoreNames.contains("calendarSubscriptions")) {
             db.createObjectStore("calendarSubscriptions", { keyPath: "id" });
+          }
+        }
+        if (oldVersion < 5) {
+          if (!db.objectStoreNames.contains("schoolLunchFeeds")) {
+            db.createObjectStore("schoolLunchFeeds", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("schoolLunchDays")) {
+            db.createObjectStore("schoolLunchDays", { keyPath: "id" });
           }
         }
       },
@@ -391,6 +409,8 @@ export async function loadAll(): Promise<{
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
+  schoolLunchFeeds: SchoolLunchFeed[];
+  schoolLunchDays: SchoolLunchDay[];
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
 }> {
@@ -407,6 +427,8 @@ export async function loadAll(): Promise<{
     routineProgress,
     recurringTemplates,
     calendarSubscriptions,
+    schoolLunchFeeds,
+    schoolLunchDays,
     idagLayouts,
     idagLayoutLocked,
   ] = await Promise.all([
@@ -420,6 +442,8 @@ export async function loadAll(): Promise<{
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
     db.getAll("calendarSubscriptions"),
+    db.getAll("schoolLunchFeeds"),
+    db.getAll("schoolLunchDays"),
     readIdagLayouts(db),
     readIdagLayoutLocked(db),
   ]);
@@ -429,6 +453,10 @@ export async function loadAll(): Promise<{
   routines.sort(compareRoutines);
   recurringTemplates.sort((a, b) => a.title.localeCompare(b.title, "sv"));
   calendarSubscriptions.sort((a, b) => a.name.localeCompare(b.name, "sv"));
+  schoolLunchFeeds.sort((a, b) =>
+    a.schoolSlug.localeCompare(b.schoolSlug, "sv"),
+  );
+  schoolLunchDays.sort((a, b) => a.date.localeCompare(b.date));
   return {
     people,
     events,
@@ -440,6 +468,8 @@ export async function loadAll(): Promise<{
     routineProgress,
     recurringTemplates,
     calendarSubscriptions,
+    schoolLunchFeeds,
+    schoolLunchDays,
     idagLayouts,
     idagLayoutLocked,
   };
@@ -458,6 +488,8 @@ export async function deletePerson(id: string) {
     progress,
     templates,
     subscriptions,
+    lunchFeeds,
+    lunchDays,
     screenSettings,
     screenDays,
   ] = await Promise.all([
@@ -466,6 +498,8 @@ export async function deletePerson(id: string) {
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
     db.getAll("calendarSubscriptions"),
+    db.getAll("schoolLunchFeeds"),
+    db.getAll("schoolLunchDays"),
     db.getAll("screenTimeSettings"),
     db.getAll("screenTimeDays"),
   ]);
@@ -482,6 +516,8 @@ export async function deletePerson(id: string) {
       "routineProgress",
       "recurringTemplates",
       "calendarSubscriptions",
+      "schoolLunchFeeds",
+      "schoolLunchDays",
       "screenTimeSettings",
       "screenTimeDays",
     ],
@@ -505,6 +541,12 @@ export async function deletePerson(id: string) {
     ...subscriptions
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("calendarSubscriptions").delete(row.id)),
+    ...lunchFeeds
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("schoolLunchFeeds").delete(row.id)),
+    ...lunchDays
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("schoolLunchDays").delete(row.id)),
     ...screenSettings
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("screenTimeSettings").delete(row.personId)),
@@ -687,6 +729,52 @@ export async function applyCalendarSubscriptionEvents(
   ]);
 }
 
+export async function putSchoolLunchFeed(feed: SchoolLunchFeed) {
+  const db = await getDb();
+  await db.put("schoolLunchFeeds", feed);
+}
+
+export async function deleteSchoolLunchFeed(id: string) {
+  const db = await getDb();
+  const days = await db.getAll("schoolLunchDays");
+  const feed = await db.get("schoolLunchFeeds", id);
+  const personId = feed?.personId;
+  const tx = db.transaction(
+    ["schoolLunchFeeds", "schoolLunchDays"],
+    "readwrite",
+  );
+  await tx.objectStore("schoolLunchFeeds").delete(id);
+  await Promise.all([
+    ...(personId
+      ? days
+          .filter((row) => row.personId === personId)
+          .map((row) => tx.objectStore("schoolLunchDays").delete(row.id))
+      : []),
+    tx.done,
+  ]);
+}
+
+/** Upsert feed meta and replace that person's cached lunch days. */
+export async function applySchoolLunchSync(
+  feed: SchoolLunchFeed,
+  days: SchoolLunchDay[],
+) {
+  const db = await getDb();
+  const existing = await db.getAll("schoolLunchDays");
+  const tx = db.transaction(
+    ["schoolLunchFeeds", "schoolLunchDays"],
+    "readwrite",
+  );
+  await tx.objectStore("schoolLunchFeeds").put(feed);
+  await Promise.all([
+    ...existing
+      .filter((row) => row.personId === feed.personId)
+      .map((row) => tx.objectStore("schoolLunchDays").delete(row.id)),
+    ...days.map((day) => tx.objectStore("schoolLunchDays").put(day)),
+    tx.done,
+  ]);
+}
+
 export async function resetToSeed() {
   const db = await getDb();
   const tx = db.transaction(
@@ -702,6 +790,8 @@ export async function resetToSeed() {
       "routineProgress",
       "recurringTemplates",
       "calendarSubscriptions",
+      "schoolLunchFeeds",
+      "schoolLunchDays",
     ],
     "readwrite",
   );
@@ -716,6 +806,8 @@ export async function resetToSeed() {
     tx.objectStore("routineProgress").clear(),
     tx.objectStore("recurringTemplates").clear(),
     tx.objectStore("calendarSubscriptions").clear(),
+    tx.objectStore("schoolLunchFeeds").clear(),
+    tx.objectStore("schoolLunchDays").clear(),
     ...SEED_PEOPLE.map((person) => tx.objectStore("people").put(person)),
     ...buildSeedEvents().map((event) => tx.objectStore("events").put(event)),
     ...buildSeedTodos().map((todo) => tx.objectStore("todos").put(todo)),

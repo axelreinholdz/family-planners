@@ -17,6 +17,7 @@ import {
 import {
   applyAllTemplateSpans,
   applyCalendarSubscriptionEvents,
+  applySchoolLunchSync,
   applyTemplatesForWeek,
   applyTemplateSpan,
   deleteCalendarSubscription as dbDeleteCalendarSubscription,
@@ -24,6 +25,7 @@ import {
   deletePerson as dbDeletePerson,
   deleteRecurringTemplate as dbDeleteRecurringTemplate,
   deleteRoutine as dbDeleteRoutine,
+  deleteSchoolLunchFeed as dbDeleteSchoolLunchFeed,
   deleteTodo as dbDeleteTodo,
   ensureScreenTimeDay,
   loadAll,
@@ -36,6 +38,7 @@ import {
   putRecurringTemplate,
   putRoutine,
   putRoutineProgress,
+  putSchoolLunchFeed,
   putScreenTimeDay,
   putScreenTimeSettings,
   putTodo,
@@ -43,6 +46,11 @@ import {
   saveDinnerMenu,
 } from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
+import { schoolLunchDayId } from "@/lib/schoolLunchRss";
+import {
+  fetchSchoolLunchWeek,
+  shouldSyncSchoolLunch,
+} from "@/lib/schoolLunchSync";
 import {
   getIdagLayoutForPerson,
   normalizeIdagLayout,
@@ -67,6 +75,8 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  SchoolLunchDay,
+  SchoolLunchFeed,
   ScreenTimeDay,
   ScreenTimeSettings,
   Todo,
@@ -84,6 +94,8 @@ interface FamilyStoreValue {
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
   calendarSubscriptions: CalendarSubscription[];
+  schoolLunchFeeds: SchoolLunchFeed[];
+  schoolLunchDays: SchoolLunchDay[];
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
   getIdagLayout: (personId: string) => IdagWidgetPlacement[];
@@ -155,6 +167,22 @@ interface FamilyStoreValue {
   syncAllCalendarSubscriptions: (options?: {
     force?: boolean;
   }) => Promise<void>;
+  getSchoolLunchFeed: (personId: string) => SchoolLunchFeed | undefined;
+  getSchoolLunchDay: (
+    personId: string,
+    date?: string,
+  ) => SchoolLunchDay | undefined;
+  saveSchoolLunchFeed: (feed: SchoolLunchFeed) => Promise<void>;
+  upsertSchoolLunchFeed: (input: {
+    personId: string;
+    schoolSlug: string;
+    enabled?: boolean;
+  }) => Promise<SchoolLunchFeed>;
+  removeSchoolLunchFeed: (id: string) => Promise<void>;
+  syncSchoolLunch: (
+    personId: string,
+    options?: { force?: boolean },
+  ) => Promise<void>;
   saveIdagLayout: (
     personId: string,
     layout: IdagWidgetPlacement[],
@@ -185,6 +213,10 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
   const [calendarSubscriptions, setCalendarSubscriptions] = useState<
     CalendarSubscription[]
   >([]);
+  const [schoolLunchFeeds, setSchoolLunchFeeds] = useState<SchoolLunchFeed[]>(
+    [],
+  );
+  const [schoolLunchDays, setSchoolLunchDays] = useState<SchoolLunchDay[]>([]);
   const [idagLayouts, setIdagLayouts] = useState<
     Record<string, IdagWidgetPlacement[]>
   >({});
@@ -202,6 +234,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRoutineProgress(data.routineProgress);
       setRecurringTemplates(data.recurringTemplates);
       setCalendarSubscriptions(data.calendarSubscriptions ?? []);
+      setSchoolLunchFeeds(data.schoolLunchFeeds ?? []);
+      setSchoolLunchDays(data.schoolLunchDays ?? []);
       setIdagLayouts(normalizeIdagLayouts(data.idagLayouts));
       setIdagLayoutLocked(Boolean(data.idagLayoutLocked));
       setReady(true);
@@ -773,6 +807,104 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const getSchoolLunchFeed = useCallback(
+    (personId: string) =>
+      schoolLunchFeeds.find((feed) => feed.personId === personId),
+    [schoolLunchFeeds],
+  );
+
+  const getSchoolLunchDay = useCallback(
+    (personId: string, date = todayKey()) =>
+      schoolLunchDays.find(
+        (day) => day.personId === personId && day.date === date,
+      ),
+    [schoolLunchDays],
+  );
+
+  const saveSchoolLunchFeed = useCallback(
+    async (feed: SchoolLunchFeed) => {
+      await putSchoolLunchFeed(feed);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const upsertSchoolLunchFeed = useCallback(
+    async (input: {
+      personId: string;
+      schoolSlug: string;
+      enabled?: boolean;
+    }) => {
+      const data = await loadAll();
+      const existing = (data.schoolLunchFeeds ?? []).find(
+        (feed) => feed.personId === input.personId,
+      );
+      const feed: SchoolLunchFeed = existing
+        ? {
+            ...existing,
+            schoolSlug: input.schoolSlug,
+            enabled: input.enabled ?? existing.enabled,
+            lastError: undefined,
+          }
+        : {
+            id: newId("skolmat"),
+            personId: input.personId,
+            schoolSlug: input.schoolSlug,
+            enabled: input.enabled ?? true,
+          };
+      await putSchoolLunchFeed(feed);
+      await refresh();
+      return feed;
+    },
+    [refresh],
+  );
+
+  const removeSchoolLunchFeed = useCallback(
+    async (id: string) => {
+      await dbDeleteSchoolLunchFeed(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const syncSchoolLunch = useCallback(
+    async (personId: string, options?: { force?: boolean }) => {
+      const data = await loadAll();
+      const feed = (data.schoolLunchFeeds ?? []).find(
+        (row) => row.personId === personId,
+      );
+      if (!feed || !feed.enabled) return;
+      if (!options?.force && !shouldSyncSchoolLunch(feed)) return;
+
+      try {
+        const parsed = await fetchSchoolLunchWeek(feed.schoolSlug);
+        const days: SchoolLunchDay[] = parsed.days.map((day) => ({
+          id: schoolLunchDayId(personId, day.date),
+          personId,
+          date: day.date,
+          dishes: day.dishes,
+        }));
+        const next: SchoolLunchFeed = {
+          ...feed,
+          schoolName: parsed.schoolName,
+          weekKey: parsed.weekKey,
+          lastSyncedAt: new Date().toISOString(),
+          lastError: undefined,
+        };
+        await applySchoolLunchSync(next, days);
+      } catch (err) {
+        const next: SchoolLunchFeed = {
+          ...feed,
+          lastError:
+            err instanceof Error ? err.message : "Kunde inte synka skolmat",
+        };
+        await putSchoolLunchFeed(next);
+      }
+      await refresh();
+    },
+    [refresh],
+  );
+
   const getIdagLayout = useCallback(
     (personId: string) => getIdagLayoutForPerson(idagLayouts, personId),
     [idagLayouts],
@@ -823,6 +955,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routineProgress,
       recurringTemplates,
       calendarSubscriptions,
+      schoolLunchFeeds,
+      schoolLunchDays,
       idagLayouts,
       idagLayoutLocked,
       getIdagLayout,
@@ -862,6 +996,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       removeCalendarSubscription,
       syncCalendarSubscription,
       syncAllCalendarSubscriptions,
+      getSchoolLunchFeed,
+      getSchoolLunchDay,
+      saveSchoolLunchFeed,
+      upsertSchoolLunchFeed,
+      removeSchoolLunchFeed,
+      syncSchoolLunch,
       saveIdagLayout,
       saveIdagLayoutLocked,
       resetData,
@@ -878,6 +1018,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routineProgress,
       recurringTemplates,
       calendarSubscriptions,
+      schoolLunchFeeds,
+      schoolLunchDays,
       idagLayouts,
       idagLayoutLocked,
       getIdagLayout,
@@ -917,6 +1059,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       removeCalendarSubscription,
       syncCalendarSubscription,
       syncAllCalendarSubscriptions,
+      getSchoolLunchFeed,
+      getSchoolLunchDay,
+      saveSchoolLunchFeed,
+      upsertSchoolLunchFeed,
+      removeSchoolLunchFeed,
+      syncSchoolLunch,
       saveIdagLayout,
       saveIdagLayoutLocked,
       resetData,
