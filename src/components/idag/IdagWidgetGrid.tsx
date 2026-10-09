@@ -15,8 +15,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { DinnerWidget } from "@/components/idag/widgets/DinnerWidget";
 import { NextEventsWidget } from "@/components/idag/widgets/NextEventsWidget";
-import { RoutinesWidget } from "@/components/idag/widgets/RoutinesWidget";
+import {
+  countRoutineContentUnits,
+  RoutinesWidget,
+} from "@/components/idag/widgets/RoutinesWidget";
 import { ScreenTimeWidget } from "@/components/idag/widgets/ScreenTimeWidget";
+import { useFamilyStore } from "@/hooks/useFamilyStore";
+import { mondayWeekdayIndex } from "@/lib/dates";
 import {
   IDAG_GRID_COLUMNS,
   IDAG_WIDGET_ORIENTATIONS,
@@ -36,6 +41,8 @@ import {
   resizeWidget,
   resolveOrientation,
   slotId,
+  widgetShowsOrientation,
+  type IdagFootprintContext,
 } from "@/lib/idagLayout";
 import type {
   IdagWidgetOrientation,
@@ -48,12 +55,10 @@ import type {
 function WidgetBody({
   type,
   child,
-  size,
   orientation,
 }: {
   type: IdagWidgetType;
   child: Person | undefined;
-  size: IdagWidgetSize;
   orientation: IdagWidgetOrientation;
 }) {
   switch (type) {
@@ -64,9 +69,7 @@ function WidgetBody({
     case "nextEvents":
       return <NextEventsWidget child={child} />;
     case "routines":
-      return (
-        <RoutinesWidget child={child} size={size} orientation={orientation} />
-      );
+      return <RoutinesWidget child={child} orientation={orientation} />;
     default:
       return null;
   }
@@ -86,30 +89,33 @@ function SizeChrome({
   onOrientation: (orientation: IdagWidgetOrientation) => void;
 }) {
   const sizes = allowedSizesForWidget(type);
+  const showOrientation = widgetShowsOrientation(type, size);
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <div
-        className="flex rounded-xl bg-[var(--surface-soft)] p-0.5"
-        role="group"
-        aria-label="Storlek"
-      >
-        {sizes.map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => onSize(value)}
-            title={IDAG_WIDGET_SIZE_HINTS[value]}
-            className={`tap-target rounded-lg px-2.5 py-1.5 text-xs font-bold ${
-              size === value
-                ? "bg-[var(--accent)] text-white"
-                : "text-[var(--ink-muted)]"
-            }`}
-          >
-            {IDAG_WIDGET_SIZE_LABELS[value]}
-          </button>
-        ))}
-      </div>
-      {size === "XL" ? (
+      {sizes.length > 0 ? (
+        <div
+          className="flex rounded-xl bg-[var(--surface-soft)] p-0.5"
+          role="group"
+          aria-label="Storlek"
+        >
+          {sizes.map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => onSize(value)}
+              title={IDAG_WIDGET_SIZE_HINTS[value]}
+              className={`tap-target rounded-lg px-2.5 py-1.5 text-xs font-bold ${
+                size === value
+                  ? "bg-[var(--accent)] text-white"
+                  : "text-[var(--ink-muted)]"
+              }`}
+            >
+              {IDAG_WIDGET_SIZE_LABELS[value]}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showOrientation ? (
         <div
           className="flex rounded-xl bg-[var(--surface-soft)] p-0.5"
           role="group"
@@ -123,7 +129,7 @@ function SizeChrome({
               title={
                 value === "horizontal"
                   ? "Fyll hela raden"
-                  : "Fyll en hel kolumn"
+                  : "Fyll en kolumn (höjd efter innehåll)"
               }
               className={`tap-target rounded-lg px-2.5 py-1.5 text-xs font-bold ${
                 orientation === value
@@ -181,10 +187,22 @@ function GridSlot({
   );
 }
 
+function footprintFor(
+  placement: IdagWidgetPlacement,
+  contentUnitsById?: Record<string, number>,
+) {
+  const orientation = resolveOrientation(placement);
+  return idagWidgetFootprint(placement.size, orientation, {
+    type: placement.type,
+    contentUnits: contentUnitsById?.[placement.id],
+  });
+}
+
 function DraggableWidgetCard({
   placement,
   child,
   editing,
+  contentUnitsById,
   onSizeChange,
   onOrientationChange,
   onRemove,
@@ -192,12 +210,16 @@ function DraggableWidgetCard({
   placement: IdagWidgetPlacement;
   child: Person | undefined;
   editing: boolean;
+  contentUnitsById?: Record<string, number>;
   onSizeChange: (id: string, size: IdagWidgetSize) => void;
   onOrientationChange: (id: string, orientation: IdagWidgetOrientation) => void;
   onRemove: (id: string) => void;
 }) {
   const orientation = resolveOrientation(placement);
-  const footprint = idagWidgetFootprint(placement.size, orientation);
+  const footprint = footprintFor(placement, contentUnitsById);
+  // Column routines size to content so the white card wraps the last step.
+  const hugContent =
+    placement.type === "routines" && orientation === "vertical";
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({
       id: placement.id,
@@ -214,17 +236,18 @@ function DraggableWidgetCard({
     transform: CSS.Translate.toString(transform),
     zIndex: isDragging ? 30 : 10,
     opacity: isDragging ? 0.35 : 1,
-    alignSelf: "stretch" as const,
+    alignSelf: hugContent ? ("start" as const) : ("stretch" as const),
     justifySelf: "stretch" as const,
+    height: hugContent ? ("auto" as const) : undefined,
   };
 
   return (
     <section
       ref={setNodeRef}
       style={style}
-      className={`flex h-full min-h-0 w-full flex-col self-stretch overflow-hidden rounded-3xl bg-white/90 shadow-sm ring-1 ring-black/5 ${
-        compact ? "p-2.5" : "p-4"
-      } ${editing ? "ring-[var(--accent)]/40" : ""}`}
+      className={`flex w-full flex-col overflow-hidden rounded-3xl bg-white/90 shadow-sm ring-1 ring-black/5 ${
+        hugContent ? "h-auto self-start" : "h-full min-h-0 self-stretch"
+      } ${compact ? "p-2.5" : "p-4"} ${editing ? "ring-[var(--accent)]/40" : ""}`}
     >
       {editing ? (
         <div
@@ -271,11 +294,16 @@ function DraggableWidgetCard({
           </button>
         </div>
       ) : null}
-      <div className="flex min-h-0 flex-1 flex-col overflow-auto">
+      <div
+        className={
+          hugContent
+            ? "flex flex-col"
+            : "flex min-h-0 flex-1 flex-col overflow-auto"
+        }
+      >
         <WidgetBody
           type={placement.type}
           child={child}
-          size={placement.size}
           orientation={orientation}
         />
       </div>
@@ -286,25 +314,27 @@ function DraggableWidgetCard({
 function WidgetPreview({
   placement,
   child,
+  contentUnitsById,
 }: {
   placement: IdagWidgetPlacement;
   child: Person | undefined;
+  contentUnitsById?: Record<string, number>;
 }) {
   const orientation = resolveOrientation(placement);
   const compact = idagWidgetIsCompact(placement.size);
+  const footprint = footprintFor(placement, contentUnitsById);
   return (
     <section
       className={`flex min-h-0 flex-col overflow-hidden rounded-3xl bg-white shadow-lg ring-2 ring-[var(--accent)] ${
         compact ? "p-2.5" : "p-4"
       }`}
       style={{
-        width: `min(${(idagWidgetFootprint(placement.size, orientation).cols / IDAG_GRID_COLUMNS) * 100}vw, 28rem)`,
+        width: `min(${(footprint.cols / IDAG_GRID_COLUMNS) * 100}vw, 28rem)`,
       }}
     >
       <WidgetBody
         type={placement.type}
         child={child}
-        size={placement.size}
         orientation={orientation}
       />
     </section>
@@ -322,8 +352,25 @@ export function IdagWidgetGrid({
   editing: boolean;
   onChange: (next: IdagWidgetPlacement[]) => void;
 }) {
+  const { routines } = useFamilyStore();
   const [addOpen, setAddOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+
+  const contentUnitsById = useMemo(() => {
+    const weekday = mondayWeekdayIndex(new Date());
+    const now = new Date();
+    const units: Record<string, number> = {};
+    for (const placement of layout) {
+      if (placement.type !== "routines") continue;
+      units[placement.id] = countRoutineContentUnits(
+        routines,
+        child?.id ?? "",
+        weekday,
+        now,
+      );
+    }
+    return units;
+  }, [layout, routines, child?.id]);
 
   const available = useMemo(() => availablePhase1Types(layout), [layout]);
   const rowCount = useMemo(
@@ -331,8 +378,9 @@ export function IdagWidgetGrid({
       idagGridRowCount(layout, {
         editing,
         extraEmptyRows: editing ? 2 : 0,
+        contentUnitsById,
       }),
-    [layout, editing],
+    [layout, editing, contentUnitsById],
   );
 
   const activePlacement = useMemo(
@@ -358,6 +406,10 @@ export function IdagWidgetGrid({
 
   const slotValid = (col: number, row: number) => {
     if (!activePlacement) return false;
+    const ctx: IdagFootprintContext = {
+      type: activePlacement.type,
+      contentUnits: contentUnitsById[activePlacement.id],
+    };
     return canPlaceAt(
       layout,
       col,
@@ -365,6 +417,8 @@ export function IdagWidgetGrid({
       activePlacement.size,
       resolveOrientation(activePlacement),
       activePlacement.id,
+      ctx,
+      contentUnitsById,
     );
   };
 
@@ -378,7 +432,7 @@ export function IdagWidgetGrid({
     const id = String(event.active.id);
     setActiveId(null);
     if (!slot) return;
-    onChange(moveWidgetToCell(layout, id, slot.col, slot.row));
+    onChange(moveWidgetToCell(layout, id, slot.col, slot.row, contentUnitsById));
   };
 
   const handleDragCancel = () => {
@@ -387,20 +441,26 @@ export function IdagWidgetGrid({
 
   const setSize = (id: string, size: IdagWidgetSize) => {
     const current = layout.find((p) => p.id === id);
+    if (!current) return;
     onChange(
       resizeWidget(
         layout,
         id,
         size,
-        size === "XL" ? (current?.orientation ?? "horizontal") : undefined,
+        widgetShowsOrientation(current.type, size)
+          ? (current.orientation ?? "horizontal")
+          : undefined,
+        contentUnitsById,
       ),
     );
   };
 
   const setOrientation = (id: string, orientation: IdagWidgetOrientation) => {
     const current = layout.find((p) => p.id === id);
-    if (!current || current.size !== "XL") return;
-    onChange(resizeWidget(layout, id, "XL", orientation));
+    if (!current || !widgetShowsOrientation(current.type, current.size)) return;
+    onChange(
+      resizeWidget(layout, id, current.size, orientation, contentUnitsById),
+    );
   };
 
   const remove = (id: string) => {
@@ -408,7 +468,7 @@ export function IdagWidgetGrid({
   };
 
   const add = (type: IdagWidgetType) => {
-    onChange(addWidgetToLayout(layout, type));
+    onChange(addWidgetToLayout(layout, type, contentUnitsById));
     setAddOpen(false);
   };
 
@@ -477,6 +537,7 @@ export function IdagWidgetGrid({
                 placement={placement}
                 child={child}
                 editing={editing}
+                contentUnitsById={contentUnitsById}
                 onSizeChange={setSize}
                 onOrientationChange={setOrientation}
                 onRemove={remove}
@@ -486,7 +547,11 @@ export function IdagWidgetGrid({
 
           <DragOverlay dropAnimation={null}>
             {activePlacement ? (
-              <WidgetPreview placement={activePlacement} child={child} />
+              <WidgetPreview
+                placement={activePlacement}
+                child={child}
+                contentUnitsById={contentUnitsById}
+              />
             ) : null}
           </DragOverlay>
         </DndContext>

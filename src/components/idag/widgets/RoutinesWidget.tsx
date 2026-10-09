@@ -3,32 +3,36 @@
 import { useEffect, useState } from "react";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { mondayWeekdayIndex, todayKey } from "@/lib/dates";
-import { idagWidgetPreferVertical } from "@/lib/idagLayout";
 import { compareRoutines, routineVisibleNow } from "@/lib/routines";
-import type { IdagWidgetOrientation, IdagWidgetSize, Person } from "@/lib/types";
+import type { IdagWidgetOrientation, Person, Routine } from "@/lib/types";
 
-const STEP_CARD_MIN_H = "min-h-[6.5rem]";
-
+/**
+ * Fixed step-card height (use `h-*`, not `min-h-*`).
+ * `.tap-target` sets min-height: 44px after utilities and would override min-h-*.
+ */
 function StepCard({
   emoji,
   label,
   done,
-  stretch,
+  layout,
   onToggle,
 }: {
   emoji: string;
   label: string;
   done: boolean;
-  stretch: boolean;
+  layout: "row" | "column";
   onToggle: () => void;
 }) {
+  const column = layout === "column";
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={done}
-      className={`tap-target relative flex ${STEP_CARD_MIN_H} flex-col items-center justify-center gap-1.5 rounded-2xl px-2 py-3 ring-2 transition ${
-        stretch ? "w-full flex-1" : "min-w-0 flex-1"
+      className={`tap-target relative flex h-[6.5rem] items-center justify-center gap-1.5 rounded-2xl ring-2 transition ${
+        column
+          ? "w-full shrink-0 flex-row gap-3 px-4 py-3"
+          : "min-w-0 flex-1 flex-col px-2 py-3"
       } ${
         done
           ? "bg-[var(--accent)] text-white ring-[var(--accent-deep)] shadow-md"
@@ -50,9 +54,9 @@ function StepCard({
         {emoji}
       </span>
       <span
-        className={`max-w-full truncate px-0.5 text-center font-display text-base font-bold ${
-          done ? "text-white" : "text-[var(--ink)]"
-        }`}
+        className={`max-w-full truncate px-0.5 font-display text-base font-bold ${
+          column ? "min-w-0 flex-1 text-left" : "text-center"
+        } ${done ? "text-white" : "text-[var(--ink)]"}`}
       >
         {label}
       </span>
@@ -71,11 +75,9 @@ function StepCard({
 
 export function RoutinesWidget({
   child,
-  size = "XL",
   orientation = "horizontal",
 }: {
   child: Person | undefined;
-  size?: IdagWidgetSize;
   orientation?: IdagWidgetOrientation;
 }) {
   const { routines, routineProgress, toggleRoutineStep } = useFamilyStore();
@@ -83,9 +85,7 @@ export function RoutinesWidget({
   const todayWeekday = mondayWeekdayIndex(new Date());
   const today = todayKey();
   const personId = child?.id ?? "";
-  const vertical = idagWidgetPreferVertical(size, orientation);
-  /** Grow step cards to fill the tile when stacked vertically. */
-  const fillHeight = vertical;
+  const column = orientation === "vertical";
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -109,7 +109,11 @@ export function RoutinesWidget({
 
   return (
     <div
-      className={`flex flex-col gap-3 ${fillHeight ? "h-full min-h-0" : ""}`}
+      className={
+        column
+          ? "flex flex-col gap-3"
+          : "flex h-full min-h-0 flex-col gap-3 overflow-auto"
+      }
     >
       {childRoutines.map((routine) => {
         const progress = routineProgress.find(
@@ -122,10 +126,7 @@ export function RoutinesWidget({
         );
 
         return (
-          <div
-            key={routine.id}
-            className={`flex min-h-0 flex-col ${fillHeight ? "flex-1" : ""}`}
-          >
+          <div key={routine.id} className="flex shrink-0 flex-col">
             <div className="mb-3 flex shrink-0 items-end justify-between gap-3">
               <div>
                 <h3 className="font-display text-xl font-bold text-[var(--ink)]">
@@ -138,9 +139,7 @@ export function RoutinesWidget({
             </div>
             <div
               className={
-                vertical
-                  ? `flex min-h-0 flex-col gap-2 ${fillHeight ? "flex-1" : ""}`
-                  : "flex flex-nowrap gap-2"
+                column ? "flex flex-col gap-2" : "flex flex-nowrap gap-2"
               }
             >
               {steps.map((step) => {
@@ -151,7 +150,7 @@ export function RoutinesWidget({
                     emoji={step.emoji}
                     label={step.label}
                     done={Boolean(done)}
-                    stretch={vertical}
+                    layout={column ? "column" : "row"}
                     onToggle={() =>
                       void toggleRoutineStep(routine.id, step.id)
                     }
@@ -164,4 +163,17 @@ export function RoutinesWidget({
       })}
     </div>
   );
+}
+
+/** Step cards that drive column height for the routines widget. */
+export function countRoutineContentUnits(
+  routines: Routine[],
+  personId: string,
+  weekday: number,
+  now: Date,
+): number {
+  return routines
+    .filter((r) => r.personId === personId)
+    .filter((r) => routineVisibleNow(r, weekday, now))
+    .reduce((sum, r) => sum + Math.max(1, r.steps.length), 0);
 }
