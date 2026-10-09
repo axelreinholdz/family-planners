@@ -4,15 +4,17 @@ import { useMemo, useState } from "react";
 import {
   DndContext,
   DragOverlay,
+  type CollisionDetection,
   type DragEndEvent,
   type DragStartEvent,
+  type Modifier,
   PointerSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
-import { CSS } from "@dnd-kit/utilities";
+import { CSS, getEventCoordinates } from "@dnd-kit/utilities";
 import { DinnerWidget } from "@/components/idag/widgets/DinnerWidget";
 import { NextEventsWidget } from "@/components/idag/widgets/NextEventsWidget";
 import {
@@ -51,6 +53,68 @@ import type {
   IdagWidgetType,
   Person,
 } from "@/lib/types";
+
+/**
+ * Map the pointer to a grid slot (top-left placement), not the widget center.
+ * Prefers the cell under the finger; falls back to nearest cell top-left.
+ */
+const pointerSlotCollision: CollisionDetection = ({
+  droppableContainers,
+  droppableRects,
+  pointerCoordinates,
+}) => {
+  if (!pointerCoordinates) return [];
+
+  const { x, y } = pointerCoordinates;
+  for (const container of droppableContainers) {
+    const rect = droppableRects.get(container.id);
+    if (!rect) continue;
+    if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+      return [
+        {
+          id: container.id,
+          data: { droppableContainer: container, value: 0 },
+        },
+      ];
+    }
+  }
+
+  let best:
+    | { id: (typeof droppableContainers)[number]["id"]; dist: number; container: (typeof droppableContainers)[number] }
+    | null = null;
+  for (const container of droppableContainers) {
+    const rect = droppableRects.get(container.id);
+    if (!rect) continue;
+    const dist = Math.hypot(x - rect.left, y - rect.top);
+    if (!best || dist < best.dist) {
+      best = { id: container.id, dist, container };
+    }
+  }
+  return best
+    ? [
+        {
+          id: best.id,
+          data: { droppableContainer: best.container, value: best.dist },
+        },
+      ]
+    : [];
+};
+
+/** Keep the dragged widget's top-left under the cursor/finger. */
+const snapTopLeftToCursor: Modifier = ({
+  activatorEvent,
+  draggingNodeRect,
+  transform,
+}) => {
+  if (!draggingNodeRect || !activatorEvent) return transform;
+  const coords = getEventCoordinates(activatorEvent);
+  if (!coords) return transform;
+  return {
+    ...transform,
+    x: transform.x + (coords.x - draggingNodeRect.left),
+    y: transform.y + (coords.y - draggingNodeRect.top),
+  };
+};
 
 function WidgetBody({
   type,
@@ -495,6 +559,8 @@ export function IdagWidgetGrid({
       ) : (
         <DndContext
           sensors={sensors}
+          collisionDetection={pointerSlotCollision}
+          modifiers={[snapTopLeftToCursor]}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}

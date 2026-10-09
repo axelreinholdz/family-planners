@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { mondayWeekdayIndex } from "@/lib/dates";
 
-const TITLE_MAX_PX = 48;
-const TITLE_MIN_PX = 12;
+const DISH_MAX_PX = 72;
+const DISH_MIN_PX = 14;
+const MEASURE_AT = 100;
 
-/** One-line text that grows to fill width, shrinking only when needed. */
+/** One-line dish text: grow to fill container width, shrink only when needed. */
 function FitOneLine({
   text,
   className,
@@ -15,47 +16,62 @@ function FitOneLine({
   text: string;
   className?: string;
 }) {
-  const ref = useRef<HTMLParagraphElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [fontSize, setFontSize] = useState(DISH_MAX_PX);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const box = boxRef.current;
+    if (!box) return;
 
     const fit = () => {
-      if (el.clientWidth <= 0) return;
+      const width = box.clientWidth;
+      if (width <= 0) return;
 
-      let lo = TITLE_MIN_PX;
-      let hi = TITLE_MAX_PX;
-      let best = TITLE_MIN_PX;
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-      while (hi - lo > 0.25) {
-        const mid = (lo + hi) / 2;
-        el.style.fontSize = `${mid}px`;
-        if (el.scrollWidth <= el.clientWidth + 0.5) {
-          best = mid;
-          lo = mid;
-        } else {
-          hi = mid;
-        }
-      }
-
-      el.style.fontSize = `${best}px`;
+      // Match rendered weight/family so short names (e.g. Pizza) fill the row.
+      const style = getComputedStyle(box);
+      const family = style.fontFamily || "serif";
+      ctx.font = `700 ${MEASURE_AT}px ${family}`;
+      const textWidth = Math.max(1, ctx.measureText(text).width);
+      // Fill width; only shrink when the line would overflow.
+      const byWidth = (width / textWidth) * MEASURE_AT;
+      const next = Math.max(DISH_MIN_PX, Math.min(DISH_MAX_PX, byWidth));
+      setFontSize(next);
     };
 
     fit();
-    const observer = new ResizeObserver(fit);
-    observer.observe(el);
-    return () => observer.disconnect();
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(fit);
+    });
+    ro.observe(box);
+
+    let cancelled = false;
+    void document.fonts.ready.then(() => {
+      if (!cancelled) fit();
+    });
+
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+    };
   }, [text]);
 
   return (
-    <p
-      ref={ref}
-      title={text}
-      className={`w-full overflow-hidden whitespace-nowrap leading-none ${className ?? ""}`}
+    <div
+      ref={boxRef}
+      className="flex h-full min-h-0 w-full min-w-0 flex-1 items-center overflow-hidden font-display"
     >
-      {text}
-    </p>
+      <p
+        title={text}
+        style={{ fontSize: `${fontSize}px` }}
+        className={`w-full overflow-hidden whitespace-nowrap leading-none ${className ?? ""}`}
+      >
+        {text}
+      </p>
+    </div>
   );
 }
 
@@ -75,12 +91,10 @@ export function DinnerWidget() {
           Middag
         </h3>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1 items-center">
-        <FitOneLine
-          text={dish}
-          className="min-w-0 font-display font-bold text-[var(--ink)]"
-        />
-      </div>
+      <FitOneLine
+        text={dish}
+        className="font-display font-bold text-[var(--ink)]"
+      />
     </div>
   );
 }
