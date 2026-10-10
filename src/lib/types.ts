@@ -151,13 +151,40 @@ export interface SchoolLunchDay {
   dishes: string[];
 }
 
+/** Daily goal ceiling for a reward activity (1–5 stars). */
+export type RewardMaxStars = 1 | 2 | 3 | 4 | 5;
+
+/** Configurable chore/activity that can earn stars. */
+export interface RewardActivity {
+  id: string;
+  personId: string;
+  title: string;
+  /** Max stars that can be awarded per available day. */
+  maxStars: RewardMaxStars;
+  /** Monday-start weekdays 0–6 when this activity is available. */
+  weekdays: number[];
+  sortOrder: number;
+  enabled: boolean;
+}
+
+/** Stars earned for one activity on one calendar day. */
+export interface RewardAward {
+  /** `${activityId}:${date}` */
+  id: string;
+  activityId: string;
+  personId: string;
+  date: string; // YYYY-MM-DD
+  stars: number; // 0 … activity.maxStars
+}
+
 /** Phase 1 Idag widgets. */
 export type IdagWidgetType =
   | "screenTime"
   | "dinner"
   | "nextEvents"
   | "routines"
-  | "schoolLunch";
+  | "schoolLunch"
+  | "rewards";
 
 /**
  * Widget footprint on the 8-column Idag grid (iOS/Android-style).
@@ -200,6 +227,8 @@ export interface FamilyData {
   calendarSubscriptions: CalendarSubscription[];
   schoolLunchFeeds: SchoolLunchFeed[];
   schoolLunchDays: SchoolLunchDay[];
+  rewardActivities: RewardActivity[];
+  rewardAwards: RewardAward[];
   /** Widget grid layout per child person id. */
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   /** When true, Ordna requires the Hantera PIN. */

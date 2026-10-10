@@ -3,6 +3,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { IconPicker } from "@/components/IconPicker";
+import { ManageBeloning } from "@/components/ManageBeloning";
 import { ManageCalendars } from "@/components/ManageCalendars";
 import { ManageDinners } from "@/components/ManageDinners";
 import { ManageModal } from "@/components/ManageModal";
@@ -47,6 +48,7 @@ type Tab =
   | "recurring"
   | "calendars"
   | "routines"
+  | "beloning"
   | "dinners"
   | "schoolLunch"
   | "screentime"
@@ -204,6 +206,7 @@ export function ManageView({ onBack }: ManageViewProps) {
             ["recurring", "Återkommande"],
             ["calendars", "Kalendrar"],
             ["routines", "Rutiner"],
+            ["beloning", "Belöning"],
             ["dinners", "Middagsmeny"],
             ["schoolLunch", "Skolmat"],
             ["screentime", "Skärmtid"],
@@ -409,6 +412,8 @@ export function ManageView({ onBack }: ManageViewProps) {
       {tab === "calendars" ? <ManageCalendars /> : null}
 
       {tab === "routines" ? <ManageRoutines /> : null}
+
+      {tab === "beloning" ? <ManageBeloning /> : null}
 
       {tab === "dinners" ? <ManageDinners /> : null}
 

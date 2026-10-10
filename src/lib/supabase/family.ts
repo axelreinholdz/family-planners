@@ -35,6 +35,8 @@ export function emptyFamilyData(): FamilyData {
     calendarSubscriptions: [],
     schoolLunchFeeds: [],
     schoolLunchDays: [],
+    rewardActivities: [],
+    rewardAwards: [],
     idagLayouts: {},
     idagLayoutLocked: false,
   };
@@ -76,6 +78,8 @@ export function buildSeedFamilyData(): FamilyData {
     calendarSubscriptions: [],
     schoolLunchFeeds: [],
     schoolLunchDays: [],
+    rewardActivities: [],
+    rewardAwards: [],
     idagLayouts: {},
     idagLayoutLocked: false,
   };
@@ -263,6 +267,22 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
       partial.calendarSubscriptions ?? base.calendarSubscriptions,
     schoolLunchFeeds: partial.schoolLunchFeeds ?? base.schoolLunchFeeds,
     schoolLunchDays: partial.schoolLunchDays ?? base.schoolLunchDays,
+    rewardActivities: (partial.rewardActivities ?? base.rewardActivities).map(
+      (activity) => ({
+        ...activity,
+        title: typeof activity.title === "string" ? activity.title : "Aktivitet",
+        maxStars: ([1, 2, 3, 4, 5] as const).includes(
+          activity.maxStars as 1 | 2 | 3 | 4 | 5,
+        )
+          ? (activity.maxStars as 1 | 2 | 3 | 4 | 5)
+          : 1,
+        weekdays: Array.isArray(activity.weekdays) ? activity.weekdays : [],
+        sortOrder:
+          typeof activity.sortOrder === "number" ? activity.sortOrder : 0,
+        enabled: activity.enabled !== false,
+      }),
+    ),
+    rewardAwards: partial.rewardAwards ?? base.rewardAwards,
     idagLayouts: normalizeIdagLayouts(
       partial.idagLayouts ??
         (partial as { idagLayout?: unknown }).idagLayout,

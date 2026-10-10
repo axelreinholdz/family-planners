@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { BeloningView } from "@/components/BeloningView";
 import { IdagView } from "@/components/IdagView";
 import { ManagePinGate } from "@/components/ManagePinGate";
 import { ManageView } from "@/components/ManageView";
@@ -9,7 +10,7 @@ import { TodoView } from "@/components/TodoView";
 import { WeekView } from "@/components/WeekView";
 import { FamilyStoreProvider } from "@/hooks/useFamilyStore";
 
-const PAGE_LABELS = ["Veckans Schema", "Idag", "Att göra"] as const;
+const PAGE_LABELS = ["Veckans Schema", "Idag", "Belöning", "Att göra"] as const;
 
 function KitchenApp() {
   const [pageIndex, setPageIndex] = useState(0);
@@ -95,6 +96,7 @@ function KitchenApp() {
             label: "Idag",
             content: <IdagView onEditingChange={setIdagEditing} />,
           },
+          { id: "beloning", label: "Belöning", content: <BeloningView /> },
           { id: "todos", label: "Att göra", content: <TodoView /> },
         ]}
       />

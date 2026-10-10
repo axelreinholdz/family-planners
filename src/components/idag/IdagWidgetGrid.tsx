@@ -21,6 +21,7 @@ import {
   countRoutineContentUnits,
   RoutinesWidget,
 } from "@/components/idag/widgets/RoutinesWidget";
+import { RewardsWidget } from "@/components/idag/widgets/RewardsWidget";
 import { SchoolLunchWidget } from "@/components/idag/widgets/SchoolLunchWidget";
 import { ScreenTimeWidget } from "@/components/idag/widgets/ScreenTimeWidget";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
@@ -137,6 +138,8 @@ function WidgetBody({
       return <RoutinesWidget child={child} orientation={orientation} />;
     case "schoolLunch":
       return <SchoolLunchWidget child={child} />;
+    case "rewards":
+      return <RewardsWidget child={child} />;
     default:
       return null;
   }

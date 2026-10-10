@@ -15,6 +15,8 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  RewardActivity,
+  RewardAward,
   SchoolLunchDay,
   SchoolLunchFeed,
   ScreenTimeDay,
@@ -175,6 +177,26 @@ export async function applySchoolLunchSync(
 ) {
   if (cloudMode) return cloud.cloudApplySchoolLunchSync(feed, days);
   return local.applySchoolLunchSync(feed, days);
+}
+
+export async function putRewardActivity(activity: RewardActivity) {
+  if (cloudMode) return cloud.cloudPutRewardActivity(activity);
+  return local.putRewardActivity(activity);
+}
+
+export async function deleteRewardActivity(id: string) {
+  if (cloudMode) return cloud.cloudDeleteRewardActivity(id);
+  return local.deleteRewardActivity(id);
+}
+
+export async function putRewardAward(award: RewardAward) {
+  if (cloudMode) return cloud.cloudPutRewardAward(award);
+  return local.putRewardAward(award);
+}
+
+export async function deleteRewardAward(id: string) {
+  if (cloudMode) return cloud.cloudDeleteRewardAward(id);
+  return local.deleteRewardAward(id);
 }
 
 export async function putIdagLayout(

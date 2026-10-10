@@ -31,6 +31,8 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  RewardActivity,
+  RewardAward,
   SchoolLunchDay,
   SchoolLunchFeed,
   ScreenTimeDay,
@@ -105,6 +107,13 @@ function sortPayload(payload: FamilyData) {
     a.schoolSlug.localeCompare(b.schoolSlug, "sv"),
   );
   payload.schoolLunchDays.sort((a, b) => a.date.localeCompare(b.date));
+  payload.rewardActivities = payload.rewardActivities ?? [];
+  payload.rewardAwards = payload.rewardAwards ?? [];
+  payload.rewardActivities.sort(
+    (a, b) =>
+      a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "sv"),
+  );
+  payload.rewardAwards.sort((a, b) => a.date.localeCompare(b.date));
   payload.idagLayouts = normalizeIdagLayouts(
     payload.idagLayouts ??
       (payload as { idagLayout?: unknown }).idagLayout,
@@ -189,6 +198,17 @@ export async function cloudDeletePerson(id: string) {
     );
     data.schoolLunchDays = (data.schoolLunchDays ?? []).filter(
       (d) => d.personId !== id,
+    );
+    const rewardIds = new Set(
+      (data.rewardActivities ?? [])
+        .filter((a) => a.personId === id)
+        .map((a) => a.id),
+    );
+    data.rewardActivities = (data.rewardActivities ?? []).filter(
+      (a) => a.personId !== id,
+    );
+    data.rewardAwards = (data.rewardAwards ?? []).filter(
+      (a) => a.personId !== id && !rewardIds.has(a.activityId),
     );
     data.screenTimeSettings = data.screenTimeSettings.filter(
       (s) => s.personId !== id,
@@ -414,6 +434,41 @@ export async function cloudApplySchoolLunchSync(
       ...data.schoolLunchDays.filter((d) => d.personId !== feed.personId),
       ...days,
     ];
+  });
+}
+
+export async function cloudPutRewardActivity(activity: RewardActivity) {
+  await update((data) => {
+    data.rewardActivities = data.rewardActivities ?? [];
+    const idx = data.rewardActivities.findIndex((a) => a.id === activity.id);
+    if (idx >= 0) data.rewardActivities[idx] = activity;
+    else data.rewardActivities.push(activity);
+  });
+}
+
+export async function cloudDeleteRewardActivity(id: string) {
+  await update((data) => {
+    data.rewardActivities = (data.rewardActivities ?? []).filter(
+      (a) => a.id !== id,
+    );
+    data.rewardAwards = (data.rewardAwards ?? []).filter(
+      (a) => a.activityId !== id,
+    );
+  });
+}
+
+export async function cloudPutRewardAward(award: RewardAward) {
+  await update((data) => {
+    data.rewardAwards = data.rewardAwards ?? [];
+    const idx = data.rewardAwards.findIndex((a) => a.id === award.id);
+    if (idx >= 0) data.rewardAwards[idx] = award;
+    else data.rewardAwards.push(award);
+  });
+}
+
+export async function cloudDeleteRewardAward(id: string) {
+  await update((data) => {
+    data.rewardAwards = (data.rewardAwards ?? []).filter((a) => a.id !== id);
   });
 }
 

@@ -30,6 +30,8 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  RewardActivity,
+  RewardAward,
   SchoolLunchDay,
   SchoolLunchFeed,
   ScreenTimeDay,
@@ -94,10 +96,18 @@ interface FamilyPlannerDB extends DBSchema {
     key: string;
     value: SchoolLunchDay;
   };
+  rewardActivities: {
+    key: string;
+    value: RewardActivity;
+  };
+  rewardAwards: {
+    key: string;
+    value: RewardAward;
+  };
 }
 
 const DB_NAME = "family-planners";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 let dbPromise: Promise<IDBPDatabase<FamilyPlannerDB>> | null = null;
 
@@ -149,6 +159,14 @@ function getDb() {
           }
           if (!db.objectStoreNames.contains("schoolLunchDays")) {
             db.createObjectStore("schoolLunchDays", { keyPath: "id" });
+          }
+        }
+        if (oldVersion < 6) {
+          if (!db.objectStoreNames.contains("rewardActivities")) {
+            db.createObjectStore("rewardActivities", { keyPath: "id" });
+          }
+          if (!db.objectStoreNames.contains("rewardAwards")) {
+            db.createObjectStore("rewardAwards", { keyPath: "id" });
           }
         }
       },
@@ -411,6 +429,8 @@ export async function loadAll(): Promise<{
   calendarSubscriptions: CalendarSubscription[];
   schoolLunchFeeds: SchoolLunchFeed[];
   schoolLunchDays: SchoolLunchDay[];
+  rewardActivities: RewardActivity[];
+  rewardAwards: RewardAward[];
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
 }> {
@@ -429,6 +449,8 @@ export async function loadAll(): Promise<{
     calendarSubscriptions,
     schoolLunchFeeds,
     schoolLunchDays,
+    rewardActivities,
+    rewardAwards,
     idagLayouts,
     idagLayoutLocked,
   ] = await Promise.all([
@@ -444,6 +466,8 @@ export async function loadAll(): Promise<{
     db.getAll("calendarSubscriptions"),
     db.getAll("schoolLunchFeeds"),
     db.getAll("schoolLunchDays"),
+    db.getAll("rewardActivities"),
+    db.getAll("rewardAwards"),
     readIdagLayouts(db),
     readIdagLayoutLocked(db),
   ]);
@@ -457,6 +481,11 @@ export async function loadAll(): Promise<{
     a.schoolSlug.localeCompare(b.schoolSlug, "sv"),
   );
   schoolLunchDays.sort((a, b) => a.date.localeCompare(b.date));
+  rewardActivities.sort(
+    (a, b) =>
+      a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "sv"),
+  );
+  rewardAwards.sort((a, b) => a.date.localeCompare(b.date));
   return {
     people,
     events,
@@ -470,6 +499,8 @@ export async function loadAll(): Promise<{
     calendarSubscriptions,
     schoolLunchFeeds,
     schoolLunchDays,
+    rewardActivities,
+    rewardAwards,
     idagLayouts,
     idagLayoutLocked,
   };
@@ -490,6 +521,8 @@ export async function deletePerson(id: string) {
     subscriptions,
     lunchFeeds,
     lunchDays,
+    rewardActivities,
+    rewardAwards,
     screenSettings,
     screenDays,
   ] = await Promise.all([
@@ -500,12 +533,17 @@ export async function deletePerson(id: string) {
     db.getAll("calendarSubscriptions"),
     db.getAll("schoolLunchFeeds"),
     db.getAll("schoolLunchDays"),
+    db.getAll("rewardActivities"),
+    db.getAll("rewardAwards"),
     db.getAll("screenTimeSettings"),
     db.getAll("screenTimeDays"),
   ]);
 
   const routineIds = new Set(
     routines.filter((row) => row.personId === id).map((row) => row.id),
+  );
+  const rewardIds = new Set(
+    rewardActivities.filter((row) => row.personId === id).map((row) => row.id),
   );
 
   const tx = db.transaction(
@@ -518,6 +556,8 @@ export async function deletePerson(id: string) {
       "calendarSubscriptions",
       "schoolLunchFeeds",
       "schoolLunchDays",
+      "rewardActivities",
+      "rewardAwards",
       "screenTimeSettings",
       "screenTimeDays",
     ],
@@ -547,6 +587,14 @@ export async function deletePerson(id: string) {
     ...lunchDays
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("schoolLunchDays").delete(row.id)),
+    ...rewardActivities
+      .filter((row) => row.personId === id)
+      .map((row) => tx.objectStore("rewardActivities").delete(row.id)),
+    ...rewardAwards
+      .filter(
+        (row) => row.personId === id || rewardIds.has(row.activityId),
+      )
+      .map((row) => tx.objectStore("rewardAwards").delete(row.id)),
     ...screenSettings
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("screenTimeSettings").delete(row.personId)),
@@ -775,6 +823,37 @@ export async function applySchoolLunchSync(
   ]);
 }
 
+export async function putRewardActivity(activity: RewardActivity) {
+  const db = await getDb();
+  await db.put("rewardActivities", activity);
+}
+
+export async function deleteRewardActivity(id: string) {
+  const db = await getDb();
+  const awards = await db.getAll("rewardAwards");
+  const tx = db.transaction(
+    ["rewardActivities", "rewardAwards"],
+    "readwrite",
+  );
+  await tx.objectStore("rewardActivities").delete(id);
+  await Promise.all([
+    ...awards
+      .filter((row) => row.activityId === id)
+      .map((row) => tx.objectStore("rewardAwards").delete(row.id)),
+    tx.done,
+  ]);
+}
+
+export async function putRewardAward(award: RewardAward) {
+  const db = await getDb();
+  await db.put("rewardAwards", award);
+}
+
+export async function deleteRewardAward(id: string) {
+  const db = await getDb();
+  await db.delete("rewardAwards", id);
+}
+
 export async function resetToSeed() {
   const db = await getDb();
   const tx = db.transaction(
@@ -792,6 +871,8 @@ export async function resetToSeed() {
       "calendarSubscriptions",
       "schoolLunchFeeds",
       "schoolLunchDays",
+      "rewardActivities",
+      "rewardAwards",
     ],
     "readwrite",
   );
@@ -808,6 +889,8 @@ export async function resetToSeed() {
     tx.objectStore("calendarSubscriptions").clear(),
     tx.objectStore("schoolLunchFeeds").clear(),
     tx.objectStore("schoolLunchDays").clear(),
+    tx.objectStore("rewardActivities").clear(),
+    tx.objectStore("rewardAwards").clear(),
     ...SEED_PEOPLE.map((person) => tx.objectStore("people").put(person)),
     ...buildSeedEvents().map((event) => tx.objectStore("events").put(event)),
     ...buildSeedTodos().map((todo) => tx.objectStore("todos").put(todo)),

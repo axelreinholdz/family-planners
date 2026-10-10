@@ -24,6 +24,8 @@ import {
   deleteEvent as dbDeleteEvent,
   deletePerson as dbDeletePerson,
   deleteRecurringTemplate as dbDeleteRecurringTemplate,
+  deleteRewardActivity as dbDeleteRewardActivity,
+  deleteRewardAward as dbDeleteRewardAward,
   deleteRoutine as dbDeleteRoutine,
   deleteSchoolLunchFeed as dbDeleteSchoolLunchFeed,
   deleteTodo as dbDeleteTodo,
@@ -36,6 +38,8 @@ import {
   putIdagLayoutLocked,
   putPerson,
   putRecurringTemplate,
+  putRewardActivity,
+  putRewardAward,
   putRoutine,
   putRoutineProgress,
   putSchoolLunchFeed,
@@ -46,6 +50,11 @@ import {
   saveDinnerMenu,
 } from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
+import {
+  clampAwardStars,
+  normalizeRewardActivity,
+  rewardAwardId,
+} from "@/lib/rewards";
 import { schoolLunchDayId } from "@/lib/schoolLunchRss";
 import {
   fetchSchoolLunchWeek,
@@ -73,6 +82,8 @@ import type {
   Person,
   PersonRole,
   RecurringTemplate,
+  RewardActivity,
+  RewardAward,
   Routine,
   RoutineDayProgress,
   SchoolLunchDay,
@@ -96,6 +107,8 @@ interface FamilyStoreValue {
   calendarSubscriptions: CalendarSubscription[];
   schoolLunchFeeds: SchoolLunchFeed[];
   schoolLunchDays: SchoolLunchDay[];
+  rewardActivities: RewardActivity[];
+  rewardAwards: RewardAward[];
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
   getIdagLayout: (personId: string) => IdagWidgetPlacement[];
@@ -183,6 +196,14 @@ interface FamilyStoreValue {
     personId: string,
     options?: { force?: boolean },
   ) => Promise<void>;
+  saveRewardActivity: (activity: RewardActivity) => Promise<void>;
+  createRewardActivity: (input: Omit<RewardActivity, "id">) => Promise<void>;
+  removeRewardActivity: (id: string) => Promise<void>;
+  setRewardAward: (
+    activityId: string,
+    date: string,
+    stars: number,
+  ) => Promise<void>;
   saveIdagLayout: (
     personId: string,
     layout: IdagWidgetPlacement[],
@@ -217,6 +238,10 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [],
   );
   const [schoolLunchDays, setSchoolLunchDays] = useState<SchoolLunchDay[]>([]);
+  const [rewardActivities, setRewardActivities] = useState<RewardActivity[]>(
+    [],
+  );
+  const [rewardAwards, setRewardAwards] = useState<RewardAward[]>([]);
   const [idagLayouts, setIdagLayouts] = useState<
     Record<string, IdagWidgetPlacement[]>
   >({});
@@ -236,6 +261,10 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setCalendarSubscriptions(data.calendarSubscriptions ?? []);
       setSchoolLunchFeeds(data.schoolLunchFeeds ?? []);
       setSchoolLunchDays(data.schoolLunchDays ?? []);
+      setRewardActivities(
+        (data.rewardActivities ?? []).map(normalizeRewardActivity),
+      );
+      setRewardAwards(data.rewardAwards ?? []);
       setIdagLayouts(normalizeIdagLayouts(data.idagLayouts));
       setIdagLayoutLocked(Boolean(data.idagLayoutLocked));
       setReady(true);
@@ -905,6 +934,73 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const saveRewardActivity = useCallback(
+    async (activity: RewardActivity) => {
+      await putRewardActivity(normalizeRewardActivity(activity));
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const createRewardActivity = useCallback(
+    async (input: Omit<RewardActivity, "id">) => {
+      const person = people.find((p) => p.id === input.personId);
+      if (!person || person.role !== "child") return;
+      await putRewardActivity(
+        normalizeRewardActivity({ id: newId("reward"), ...input }),
+      );
+      await refresh();
+    },
+    [people, refresh],
+  );
+
+  const removeRewardActivity = useCallback(
+    async (id: string) => {
+      await dbDeleteRewardActivity(id);
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const setRewardAward = useCallback(
+    async (activityId: string, date: string, stars: number) => {
+      const activity = rewardActivities.find((a) => a.id === activityId);
+      if (!activity) return;
+      const maxStars = normalizeRewardActivity(activity).maxStars;
+      const nextStars = clampAwardStars(stars, maxStars);
+      const id = rewardAwardId(activityId, date);
+      if (nextStars <= 0) {
+        const existing = rewardAwards.find((a) => a.id === id);
+        if (existing) {
+          setRewardAwards((prev) => prev.filter((a) => a.id !== id));
+          try {
+            await dbDeleteRewardAward(id);
+          } catch {
+            await refresh();
+          }
+        }
+        return;
+      }
+      const award: RewardAward = {
+        id,
+        activityId,
+        personId: activity.personId,
+        date,
+        stars: nextStars,
+      };
+      setRewardAwards((prev) => {
+        const others = prev.filter((a) => a.id !== id);
+        return [...others, award];
+      });
+      try {
+        await putRewardAward(award);
+      } catch {
+        await refresh();
+      }
+    },
+    [refresh, rewardActivities, rewardAwards],
+  );
+
   const getIdagLayout = useCallback(
     (personId: string) => getIdagLayoutForPerson(idagLayouts, personId),
     [idagLayouts],
@@ -957,6 +1053,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       calendarSubscriptions,
       schoolLunchFeeds,
       schoolLunchDays,
+      rewardActivities,
+      rewardAwards,
       idagLayouts,
       idagLayoutLocked,
       getIdagLayout,
@@ -1002,6 +1100,10 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       upsertSchoolLunchFeed,
       removeSchoolLunchFeed,
       syncSchoolLunch,
+      saveRewardActivity,
+      createRewardActivity,
+      removeRewardActivity,
+      setRewardAward,
       saveIdagLayout,
       saveIdagLayoutLocked,
       resetData,
@@ -1020,6 +1122,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       calendarSubscriptions,
       schoolLunchFeeds,
       schoolLunchDays,
+      rewardActivities,
+      rewardAwards,
       idagLayouts,
       idagLayoutLocked,
       getIdagLayout,
@@ -1065,6 +1169,10 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       upsertSchoolLunchFeed,
       removeSchoolLunchFeed,
       syncSchoolLunch,
+      saveRewardActivity,
+      createRewardActivity,
+      removeRewardActivity,
+      setRewardAward,
       saveIdagLayout,
       saveIdagLayoutLocked,
       resetData,
