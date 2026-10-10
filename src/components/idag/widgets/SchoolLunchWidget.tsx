@@ -37,11 +37,13 @@ export function SchoolLunchWidget({ child }: { child: Person | undefined }) {
   }, [feed, day]);
 
   return (
-    <div className="flex h-full min-h-0 flex-col justify-center overflow-hidden">
-      <h3 className="mb-1 shrink-0 font-display text-xl font-bold leading-none text-[var(--ink)]">
-        Skolmat
-      </h3>
-      <div className="flex min-h-0 min-w-0 flex-col justify-center gap-0.5 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="mb-3 flex shrink-0 items-end justify-between gap-3">
+        <h3 className="font-display text-xl font-bold text-[var(--ink)]">
+          Skolmat
+        </h3>
+      </div>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center gap-0.5 overflow-hidden">
         {dishes.map((dish, index) => (
           <p
             key={`${index}-${dish}`}

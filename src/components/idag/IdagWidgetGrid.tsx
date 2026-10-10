@@ -426,11 +426,19 @@ export function IdagWidgetGrid({
   const [addOpen, setAddOpen] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
 
+  /** Skolmat is school-week only; keep it in Ordna so parents can still place it. */
+  const displayLayout = useMemo(() => {
+    if (editing) return layout;
+    const weekday = mondayWeekdayIndex(new Date());
+    if (weekday <= 4) return layout;
+    return layout.filter((placement) => placement.type !== "schoolLunch");
+  }, [layout, editing]);
+
   const contentUnitsById = useMemo(() => {
     const weekday = mondayWeekdayIndex(new Date());
     const now = new Date();
     const units: Record<string, number> = {};
-    for (const placement of layout) {
+    for (const placement of displayLayout) {
       if (placement.type !== "routines") continue;
       units[placement.id] = countRoutineContentUnits(
         routines,
@@ -440,17 +448,17 @@ export function IdagWidgetGrid({
       );
     }
     return units;
-  }, [layout, routines, child?.id]);
+  }, [displayLayout, routines, child?.id]);
 
   const available = useMemo(() => availablePhase1Types(layout), [layout]);
   const rowCount = useMemo(
     () =>
-      idagGridRowCount(layout, {
+      idagGridRowCount(displayLayout, {
         editing,
         extraEmptyRows: editing ? 2 : 0,
         contentUnitsById,
       }),
-    [layout, editing, contentUnitsById],
+    [displayLayout, editing, contentUnitsById],
   );
 
   const activePlacement = useMemo(
@@ -542,7 +550,7 @@ export function IdagWidgetGrid({
     setAddOpen(false);
   };
 
-  const showBoard = editing || layout.length > 0;
+  const showBoard = editing || displayLayout.length > 0;
 
   return (
     <div className={`flex flex-col gap-3 ${editing ? "" : "min-h-0"}`}>
@@ -603,7 +611,7 @@ export function IdagWidgetGrid({
               />
             ))}
 
-            {layout.map((placement) => (
+            {displayLayout.map((placement) => (
               <DraggableWidgetCard
                 key={placement.id}
                 placement={placement}
