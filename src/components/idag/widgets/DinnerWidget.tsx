@@ -1,8 +1,85 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { mondayWeekdayIndex } from "@/lib/dates";
+
+const DISH_MAX_PX = 72;
+const DISH_MIN_PX = 14;
+const MEASURE_AT = 100;
+/** Line box relative to font-size so ascenders/descenders stay inside. */
+const LINE_HEIGHT = 1.2;
+
+/** One-line dish text: fill the content area, shrink for width and height. */
+function FitOneLine({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [fontSize, setFontSize] = useState(DISH_MAX_PX);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+
+    const fit = () => {
+      const width = box.clientWidth;
+      const height = box.clientHeight;
+      if (width <= 0 || height <= 0) return;
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const style = getComputedStyle(box);
+      const family = style.fontFamily || "serif";
+      ctx.font = `700 ${MEASURE_AT}px ${family}`;
+      const textWidth = Math.max(1, ctx.measureText(text).width);
+      const byWidth = (width / textWidth) * MEASURE_AT;
+      // Cap by available height so the line box is never taller than the slot.
+      const byHeight = height / LINE_HEIGHT;
+      const next = Math.max(
+        DISH_MIN_PX,
+        Math.min(DISH_MAX_PX, byWidth, byHeight),
+      );
+      setFontSize(next);
+    };
+
+    fit();
+    const ro = new ResizeObserver(() => {
+      requestAnimationFrame(fit);
+    });
+    ro.observe(box);
+
+    let cancelled = false;
+    void document.fonts.ready.then(() => {
+      if (!cancelled) fit();
+    });
+
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+    };
+  }, [text]);
+
+  return (
+    <div
+      ref={boxRef}
+      className="flex h-full min-h-0 w-full min-w-0 flex-1 items-center font-display"
+    >
+      <p
+        title={text}
+        style={{ fontSize: `${fontSize}px`, lineHeight: LINE_HEIGHT }}
+        className={`w-full overflow-hidden whitespace-nowrap ${className ?? ""}`}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
 
 export function DinnerWidget() {
   const { dinners } = useFamilyStore();
@@ -20,14 +97,10 @@ export function DinnerWidget() {
           Middag
         </h3>
       </div>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center overflow-hidden">
-        <p
-          title={dish}
-          className="truncate font-display text-sm font-bold leading-tight text-[var(--ink)]"
-        >
-          {dish}
-        </p>
-      </div>
+      <FitOneLine
+        text={dish}
+        className="font-display font-bold text-[var(--ink)]"
+      />
     </div>
   );
 }
