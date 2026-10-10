@@ -36,6 +36,7 @@ import {
   putEvent,
   putIdagLayout,
   putIdagLayoutLocked,
+  putVisibleKitchenPages,
   putPerson,
   putRecurringTemplate,
   putRewardActivity,
@@ -72,6 +73,10 @@ import {
   screenTimeDayId,
   SEED_DINNERS,
 } from "@/lib/seed";
+import {
+  DEFAULT_VISIBLE_KITCHEN_PAGES,
+  normalizeVisibleKitchenPages,
+} from "@/lib/kitchenPages";
 import { foldActiveSession, liveElapsedSeconds } from "@/lib/screenTime";
 import type {
   CalendarSubscription,
@@ -79,6 +84,7 @@ import type {
   Event,
   IconKey,
   IdagWidgetPlacement,
+  KitchenPageId,
   Person,
   PersonRole,
   RecurringTemplate,
@@ -111,6 +117,7 @@ interface FamilyStoreValue {
   rewardAwards: RewardAward[];
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
+  visibleKitchenPages: KitchenPageId[];
   getIdagLayout: (personId: string) => IdagWidgetPlacement[];
   refresh: () => Promise<void>;
   savePerson: (person: Person) => Promise<void>;
@@ -209,6 +216,7 @@ interface FamilyStoreValue {
     layout: IdagWidgetPlacement[],
   ) => Promise<void>;
   saveIdagLayoutLocked: (locked: boolean) => Promise<void>;
+  saveVisibleKitchenPages: (pages: KitchenPageId[]) => Promise<void>;
   resetData: () => Promise<void>;
 }
 
@@ -246,6 +254,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     Record<string, IdagWidgetPlacement[]>
   >({});
   const [idagLayoutLocked, setIdagLayoutLocked] = useState(false);
+  const [visibleKitchenPages, setVisibleKitchenPages] = useState<
+    KitchenPageId[]
+  >(() => [...DEFAULT_VISIBLE_KITCHEN_PAGES]);
 
   const applyData = useCallback(
     (data: Awaited<ReturnType<typeof loadAll>>) => {
@@ -267,6 +278,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRewardAwards(data.rewardAwards ?? []);
       setIdagLayouts(normalizeIdagLayouts(data.idagLayouts));
       setIdagLayoutLocked(Boolean(data.idagLayoutLocked));
+      setVisibleKitchenPages(
+        normalizeVisibleKitchenPages(data.visibleKitchenPages),
+      );
       setReady(true);
     },
     [],
@@ -1033,6 +1047,19 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const saveVisibleKitchenPages = useCallback(
+    async (pages: KitchenPageId[]) => {
+      const normalized = normalizeVisibleKitchenPages(pages);
+      setVisibleKitchenPages(normalized);
+      try {
+        await putVisibleKitchenPages(normalized);
+      } catch {
+        await refresh();
+      }
+    },
+    [refresh],
+  );
+
   const resetData = useCallback(async () => {
     await resetToSeed();
     await refresh();
@@ -1057,6 +1084,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       rewardAwards,
       idagLayouts,
       idagLayoutLocked,
+      visibleKitchenPages,
       getIdagLayout,
       refresh,
       savePerson,
@@ -1106,6 +1134,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRewardAward,
       saveIdagLayout,
       saveIdagLayoutLocked,
+      saveVisibleKitchenPages,
       resetData,
     }),
     [
@@ -1126,6 +1155,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       rewardAwards,
       idagLayouts,
       idagLayoutLocked,
+      visibleKitchenPages,
       getIdagLayout,
       refresh,
       savePerson,
@@ -1175,6 +1205,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRewardAward,
       saveIdagLayout,
       saveIdagLayoutLocked,
+      saveVisibleKitchenPages,
       resetData,
     ],
   );

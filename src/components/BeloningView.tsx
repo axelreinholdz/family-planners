@@ -91,7 +91,7 @@ export function BeloningView() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-0.5">
       <PersonTabs
         people={people}
         selectedId={activePersonId}

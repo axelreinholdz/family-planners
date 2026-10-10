@@ -15,6 +15,7 @@ import {
 } from "@/lib/recurring";
 import { normalizeIdagLayouts } from "@/lib/idagLayout";
 import { normalizeRoutine } from "@/lib/routines";
+import { DEFAULT_VISIBLE_KITCHEN_PAGES, normalizeVisibleKitchenPages } from "@/lib/kitchenPages";
 import type { FamilyData } from "@/lib/types";
 
 function newId(prefix: string): string {
@@ -39,6 +40,7 @@ export function emptyFamilyData(): FamilyData {
     rewardAwards: [],
     idagLayouts: {},
     idagLayoutLocked: false,
+    visibleKitchenPages: [...DEFAULT_VISIBLE_KITCHEN_PAGES],
   };
 }
 
@@ -82,6 +84,7 @@ export function buildSeedFamilyData(): FamilyData {
     rewardAwards: [],
     idagLayouts: {},
     idagLayoutLocked: false,
+    visibleKitchenPages: [...DEFAULT_VISIBLE_KITCHEN_PAGES],
   };
 }
 
@@ -288,5 +291,8 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
         (partial as { idagLayout?: unknown }).idagLayout,
     ),
     idagLayoutLocked: Boolean(partial.idagLayoutLocked),
+    visibleKitchenPages: normalizeVisibleKitchenPages(
+      partial.visibleKitchenPages,
+    ),
   };
 }

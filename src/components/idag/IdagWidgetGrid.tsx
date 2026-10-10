@@ -580,7 +580,7 @@ export function IdagWidgetGrid({
           onDragCancel={handleDragCancel}
         >
           <div
-            className="grid w-full gap-3"
+            className="grid w-full gap-3 p-0.5"
             style={{
               gridTemplateColumns: `repeat(${IDAG_GRID_COLUMNS}, minmax(0, 1fr))`,
               // Equal row fracs + board aspect ⇒ square cells for every size (S–XL).

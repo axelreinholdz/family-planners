@@ -13,6 +13,7 @@ import {
   normalizeIdagLayouts,
   setIdagLayoutForPerson,
 } from "@/lib/idagLayout";
+import { normalizeVisibleKitchenPages } from "@/lib/kitchenPages";
 import { compareRoutines } from "@/lib/routines";
 import {
   buildSeedFamilyData,
@@ -31,6 +32,7 @@ import type {
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
+  KitchenPageId,
   RewardActivity,
   RewardAward,
   SchoolLunchDay,
@@ -119,6 +121,9 @@ function sortPayload(payload: FamilyData) {
       (payload as { idagLayout?: unknown }).idagLayout,
   );
   payload.idagLayoutLocked = Boolean(payload.idagLayoutLocked);
+  payload.visibleKitchenPages = normalizeVisibleKitchenPages(
+    payload.visibleKitchenPages,
+  );
 }
 
 export function clearCloudCache() {
@@ -488,6 +493,12 @@ export async function cloudPutIdagLayout(
 export async function cloudPutIdagLayoutLocked(locked: boolean) {
   await update((data) => {
     data.idagLayoutLocked = Boolean(locked);
+  });
+}
+
+export async function cloudPutVisibleKitchenPages(pages: KitchenPageId[]) {
+  await update((data) => {
+    data.visibleKitchenPages = normalizeVisibleKitchenPages(pages);
   });
 }
 

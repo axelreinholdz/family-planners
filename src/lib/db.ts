@@ -8,6 +8,10 @@ import {
   weekAnchorsBetween,
 } from "./recurring";
 import { normalizeIdagLayouts, setIdagLayoutForPerson } from "./idagLayout";
+import {
+  DEFAULT_VISIBLE_KITCHEN_PAGES,
+  normalizeVisibleKitchenPages,
+} from "./kitchenPages";
 import { compareRoutines, normalizeRoutine } from "./routines";
 import {
   buildSeedEvents,
@@ -26,6 +30,7 @@ import type {
   DinnerPlan,
   Event,
   IdagWidgetPlacement,
+  KitchenPageId,
   Person,
   RecurringTemplate,
   Routine,
@@ -41,6 +46,7 @@ import type {
 
 const IDAG_LAYOUT_META_KEY = "idagLayout";
 const IDAG_LAYOUT_LOCKED_META_KEY = "idagLayoutLocked";
+const VISIBLE_KITCHEN_PAGES_META_KEY = "visibleKitchenPages";
 
 interface FamilyPlannerDB extends DBSchema {
   meta: {
@@ -416,6 +422,20 @@ async function readIdagLayoutLocked(
   return raw === true || raw === "true" || raw === 1;
 }
 
+async function readVisibleKitchenPages(
+  db: IDBPDatabase<FamilyPlannerDB>,
+): Promise<KitchenPageId[]> {
+  const raw = await db.get("meta", VISIBLE_KITCHEN_PAGES_META_KEY);
+  if (typeof raw === "string" && raw) {
+    try {
+      return normalizeVisibleKitchenPages(JSON.parse(raw) as unknown);
+    } catch {
+      return [...DEFAULT_VISIBLE_KITCHEN_PAGES];
+    }
+  }
+  return normalizeVisibleKitchenPages(raw);
+}
+
 export async function loadAll(): Promise<{
   people: Person[];
   events: Event[];
@@ -433,6 +453,7 @@ export async function loadAll(): Promise<{
   rewardAwards: RewardAward[];
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   idagLayoutLocked: boolean;
+  visibleKitchenPages: KitchenPageId[];
 }> {
   await ensureSeeded();
   const db = await getDb();
@@ -453,6 +474,7 @@ export async function loadAll(): Promise<{
     rewardAwards,
     idagLayouts,
     idagLayoutLocked,
+    visibleKitchenPages,
   ] = await Promise.all([
     db.getAll("people"),
     db.getAll("events"),
@@ -470,6 +492,7 @@ export async function loadAll(): Promise<{
     db.getAll("rewardAwards"),
     readIdagLayouts(db),
     readIdagLayoutLocked(db),
+    readVisibleKitchenPages(db),
   ]);
   people.sort((a, b) => a.sortOrder - b.sortOrder);
   todos.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
@@ -503,6 +526,7 @@ export async function loadAll(): Promise<{
     rewardAwards,
     idagLayouts,
     idagLayoutLocked,
+    visibleKitchenPages,
   };
 }
 
@@ -743,6 +767,15 @@ export async function putIdagLayoutLocked(locked: boolean) {
   await db.put("meta", locked, IDAG_LAYOUT_LOCKED_META_KEY);
 }
 
+export async function putVisibleKitchenPages(pages: KitchenPageId[]) {
+  const db = await getDb();
+  await db.put(
+    "meta",
+    JSON.stringify(normalizeVisibleKitchenPages(pages)),
+    VISIBLE_KITCHEN_PAGES_META_KEY,
+  );
+}
+
 export async function deleteCalendarSubscription(id: string) {
   const db = await getDb();
   const events = await db.getAll("events");
@@ -905,6 +938,10 @@ export async function resetToSeed() {
     tx.objectStore("meta").put(true, "seeded"),
     tx.objectStore("meta").put(JSON.stringify({}), IDAG_LAYOUT_META_KEY),
     tx.objectStore("meta").put(false, IDAG_LAYOUT_LOCKED_META_KEY),
+    tx.objectStore("meta").put(
+      JSON.stringify([...DEFAULT_VISIBLE_KITCHEN_PAGES]),
+      VISIBLE_KITCHEN_PAGES_META_KEY,
+    ),
     tx.done,
   ]);
   await applyAllTemplateSpans();

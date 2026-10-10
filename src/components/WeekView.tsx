@@ -143,7 +143,7 @@ function PersonRow({
         return (
           <div
             key={key}
-            className={`flex min-h-0 flex-col gap-1 overflow-hidden rounded-2xl p-1.5 ring-1 ${
+            className={`flex min-h-0 flex-col gap-1 overflow-y-auto rounded-2xl p-2 ring-1 ${
               today
                 ? "bg-white shadow-md ring-[var(--accent)]/40"
                 : "bg-white/55 ring-black/5"
@@ -263,7 +263,7 @@ export function WeekView() {
         })}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-0.5 pb-1">
         {children.map((person) => (
           <PersonRow
             key={person.id}

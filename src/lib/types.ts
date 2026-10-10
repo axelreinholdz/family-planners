@@ -214,6 +214,9 @@ export interface IdagWidgetPlacement {
   sortOrder: number;
 }
 
+/** Kitchen swipe pages that can be shown/hidden in Inställningar. */
+export type KitchenPageId = "week" | "idag" | "beloning" | "todos";
+
 export interface FamilyData {
   people: Person[];
   events: Event[];
@@ -233,4 +236,6 @@ export interface FamilyData {
   idagLayouts: Record<string, IdagWidgetPlacement[]>;
   /** When true, Ordna requires the Hantera PIN. */
   idagLayoutLocked: boolean;
+  /** Which kitchen swipe pages are shown (canonical order). */
+  visibleKitchenPages: KitchenPageId[];
 }

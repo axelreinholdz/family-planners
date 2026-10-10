@@ -52,7 +52,7 @@ export function TodoView() {
         </button>
       </form>
 
-      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto md:grid-cols-2">
+      <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-0.5 md:grid-cols-2">
         <section className="flex min-h-0 flex-col rounded-3xl bg-white/70 p-4 shadow-sm ring-1 ring-black/5">
           <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-[var(--ink-muted)]">
             Att göra ({open.length})

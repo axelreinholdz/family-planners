@@ -79,7 +79,7 @@ export function IdagView({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-y-contain p-0.5">
       <div className="flex shrink-0 flex-col items-center gap-3">
         {editing || idagLayoutLocked ? (
           <p className="text-sm font-medium text-[var(--ink-muted)]">

@@ -285,7 +285,7 @@ export function ManageRoutines() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-0.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="font-display text-xl font-bold">Rutiner</h3>

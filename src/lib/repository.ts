@@ -17,6 +17,7 @@ import type {
   RoutineDayProgress,
   RewardActivity,
   RewardAward,
+  KitchenPageId,
   SchoolLunchDay,
   SchoolLunchFeed,
   ScreenTimeDay,
@@ -210,6 +211,11 @@ export async function putIdagLayout(
 export async function putIdagLayoutLocked(locked: boolean) {
   if (cloudMode) return cloud.cloudPutIdagLayoutLocked(locked);
   return local.putIdagLayoutLocked(locked);
+}
+
+export async function putVisibleKitchenPages(pages: KitchenPageId[]) {
+  if (cloudMode) return cloud.cloudPutVisibleKitchenPages(pages);
+  return local.putVisibleKitchenPages(pages);
 }
 
 export async function applyTemplatesForWeek(weekAnchor?: Date) {

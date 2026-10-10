@@ -1,6 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { BeloningView } from "@/components/BeloningView";
 import { IdagView } from "@/components/IdagView";
 import { ManagePinGate } from "@/components/ManagePinGate";
@@ -8,16 +14,58 @@ import { ManageView } from "@/components/ManageView";
 import { SwipePager } from "@/components/SwipePager";
 import { TodoView } from "@/components/TodoView";
 import { WeekView } from "@/components/WeekView";
-import { FamilyStoreProvider } from "@/hooks/useFamilyStore";
+import { FamilyStoreProvider, useFamilyStore } from "@/hooks/useFamilyStore";
+import {
+  DEFAULT_VISIBLE_KITCHEN_PAGES,
+  KITCHEN_PAGE_OPTIONS,
+} from "@/lib/kitchenPages";
+import type { KitchenPageId } from "@/lib/types";
 
-const PAGE_LABELS = ["Veckans Schema", "Idag", "Belöning", "Att göra"] as const;
+const PAGE_LABELS: Record<KitchenPageId, string> = {
+  week: "Veckans Schema",
+  idag: "Idag",
+  beloning: "Belöning",
+  todos: "Att göra",
+};
 
 function KitchenApp() {
+  const { ready, visibleKitchenPages } = useFamilyStore();
   const [pageIndex, setPageIndex] = useState(0);
   const [manageOpen, setManageOpen] = useState(false);
   const [pinPrompt, setPinPrompt] = useState(false);
   const [idagEditing, setIdagEditing] = useState(false);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const enabledPages = useMemo(() => {
+    const ids =
+      visibleKitchenPages.length > 0
+        ? visibleKitchenPages
+        : DEFAULT_VISIBLE_KITCHEN_PAGES;
+    return ids.map((id) => {
+      let content: ReactNode;
+      switch (id) {
+        case "week":
+          content = <WeekView />;
+          break;
+        case "idag":
+          content = <IdagView onEditingChange={setIdagEditing} />;
+          break;
+        case "beloning":
+          content = <BeloningView />;
+          break;
+        case "todos":
+          content = <TodoView />;
+          break;
+      }
+      return { id, label: PAGE_LABELS[id], content };
+    });
+  }, [visibleKitchenPages]);
+
+  useEffect(() => {
+    if (pageIndex >= enabledPages.length) {
+      setPageIndex(Math.max(0, enabledPages.length - 1));
+    }
+  }, [enabledPages.length, pageIndex]);
 
   const requestManage = () => setPinPrompt(true);
 
@@ -50,6 +98,11 @@ function KitchenApp() {
     );
   }
 
+  const activeLabel =
+    enabledPages[pageIndex]?.label ??
+    KITCHEN_PAGE_OPTIONS[0]?.label ??
+    "Veckans Schema";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 pt-3 sm:px-6">
@@ -71,7 +124,7 @@ function KitchenApp() {
         </button>
 
         <h1 className="font-display text-2xl font-bold tracking-tight text-[var(--ink)] sm:text-3xl">
-          {PAGE_LABELS[pageIndex] ?? "Veckans Schema"}
+          {ready ? activeLabel : "…"}
         </h1>
 
         <button
@@ -86,19 +139,10 @@ function KitchenApp() {
       </header>
 
       <SwipePager
-        activeIndex={pageIndex}
+        activeIndex={Math.min(pageIndex, Math.max(0, enabledPages.length - 1))}
         onIndexChange={setPageIndex}
         swipeEnabled={!idagEditing}
-        pages={[
-          { id: "week", label: "Veckans Schema", content: <WeekView /> },
-          {
-            id: "idag",
-            label: "Idag",
-            content: <IdagView onEditingChange={setIdagEditing} />,
-          },
-          { id: "beloning", label: "Belöning", content: <BeloningView /> },
-          { id: "todos", label: "Att göra", content: <TodoView /> },
-        ]}
+        pages={enabledPages}
       />
     </div>
   );
