@@ -44,6 +44,35 @@ body {
 }
 
 /*
+ * Horizontal routine step cards: emoji/label/badge scale with card height
+ * so kitchen / iPad zoom levels keep the same visual proportion.
+ */
+.routine-step-row {
+  container-type: size;
+  gap: clamp(0.25rem, 4cqh, 0.85rem);
+}
+
+.routine-step-row .routine-step-emoji {
+  font-size: clamp(1.75rem, 28cqh, 5rem);
+}
+
+.routine-step-row .routine-step-label {
+  font-size: clamp(0.9rem, 12cqh, 2.25rem);
+}
+
+.routine-step-row .routine-step-badge {
+  font-size: clamp(0.65rem, 7.5cqh, 1.05rem);
+  padding-inline: clamp(0.5rem, 6cqw, 0.9rem);
+  padding-block: clamp(0.1rem, 2cqh, 0.35rem);
+}
+
+.routine-step-row .routine-step-check {
+  width: clamp(1.25rem, 14cqh, 2rem);
+  height: clamp(1.25rem, 14cqh, 2rem);
+  font-size: clamp(0.7rem, 8cqh, 1.1rem);
+}
+
+/*
  * Tailwind rings use box-shadow outside the border box. Parents with
  * overflow:auto/hidden (common for kitchen scroll views) clip those sides.
  * Draw rings inside the element instead.

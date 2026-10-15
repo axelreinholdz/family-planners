@@ -13,6 +13,7 @@ import {
   normalizeVisibleKitchenPages,
 } from "./kitchenPages";
 import { compareRoutines, normalizeRoutine } from "./routines";
+import { normalizeParentByWeekday } from "./nattning";
 import {
   buildSeedEvents,
   buildSeedTodos,
@@ -20,6 +21,7 @@ import {
   routineProgressId,
   screenTimeDayId,
   SEED_DINNERS,
+  SEED_NATTNING,
   SEED_PEOPLE,
   SEED_ROUTINES,
   SEED_SCREEN_TIME,
@@ -31,6 +33,8 @@ import type {
   Event,
   IdagWidgetPlacement,
   KitchenPageId,
+  NattningDayOverride,
+  NattningSchedule,
   Person,
   RecurringTemplate,
   Routine,
@@ -78,6 +82,14 @@ interface FamilyPlannerDB extends DBSchema {
     key: string;
     value: ScreenTimeDay;
   };
+  nattningSchedules: {
+    key: string;
+    value: NattningSchedule;
+  };
+  nattningDayOverrides: {
+    key: string;
+    value: NattningDayOverride;
+  };
   routines: {
     key: string;
     value: Routine;
@@ -113,7 +125,7 @@ interface FamilyPlannerDB extends DBSchema {
 }
 
 const DB_NAME = "family-planners";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 
 let dbPromise: Promise<IDBPDatabase<FamilyPlannerDB>> | null = null;
 
@@ -173,6 +185,14 @@ function getDb() {
           }
           if (!db.objectStoreNames.contains("rewardAwards")) {
             db.createObjectStore("rewardAwards", { keyPath: "id" });
+          }
+        }
+        if (oldVersion < 7) {
+          if (!db.objectStoreNames.contains("nattningSchedules")) {
+            db.createObjectStore("nattningSchedules", { keyPath: "personId" });
+          }
+          if (!db.objectStoreNames.contains("nattningDayOverrides")) {
+            db.createObjectStore("nattningDayOverrides", { keyPath: "id" });
           }
         }
       },
@@ -245,6 +265,24 @@ async function ensureExtrasSeeded(db: IDBPDatabase<FamilyPlannerDB>) {
     const tx = db.transaction("recurringTemplates", "readwrite");
     await Promise.all([
       ...SEED_TEMPLATES.map((row) => tx.store.put(row)),
+      tx.done,
+    ]);
+  }
+
+  const nattning = await db.getAll("nattningSchedules");
+  const nattningIds = new Set(nattning.map((row) => row.personId));
+  const missingNattning = SEED_NATTNING.filter(
+    (row) => !nattningIds.has(row.personId),
+  );
+  if (missingNattning.length > 0) {
+    const tx = db.transaction("nattningSchedules", "readwrite");
+    await Promise.all([
+      ...missingNattning.map((row) =>
+        tx.store.put({
+          personId: row.personId,
+          parentByWeekday: normalizeParentByWeekday(row.parentByWeekday),
+        }),
+      ),
       tx.done,
     ]);
   }
@@ -372,6 +410,8 @@ async function ensureSeeded() {
         "dinners",
         "screenTimeSettings",
         "screenTimeDays",
+        "nattningSchedules",
+        "nattningDayOverrides",
         "routines",
         "routineProgress",
         "recurringTemplates",
@@ -386,6 +426,12 @@ async function ensureSeeded() {
       ...SEED_DINNERS.map((dinner) => tx.objectStore("dinners").put(dinner)),
       ...SEED_SCREEN_TIME.map((row) =>
         tx.objectStore("screenTimeSettings").put(row),
+      ),
+      ...SEED_NATTNING.map((row) =>
+        tx.objectStore("nattningSchedules").put({
+          personId: row.personId,
+          parentByWeekday: normalizeParentByWeekday(row.parentByWeekday),
+        }),
       ),
       ...SEED_ROUTINES.map((row) => tx.objectStore("routines").put(row)),
       ...SEED_TEMPLATES.map((row) =>
@@ -443,6 +489,8 @@ export async function loadAll(): Promise<{
   dinners: DinnerPlan[];
   screenTimeSettings: ScreenTimeSettings[];
   screenTimeDays: ScreenTimeDay[];
+  nattningSchedules: NattningSchedule[];
+  nattningDayOverrides: NattningDayOverride[];
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
@@ -464,6 +512,8 @@ export async function loadAll(): Promise<{
     dinners,
     screenTimeSettings,
     screenTimeDays,
+    nattningSchedules,
+    nattningDayOverrides,
     routines,
     routineProgress,
     recurringTemplates,
@@ -482,6 +532,8 @@ export async function loadAll(): Promise<{
     db.getAll("dinners"),
     db.getAll("screenTimeSettings"),
     db.getAll("screenTimeDays"),
+    db.getAll("nattningSchedules"),
+    db.getAll("nattningDayOverrides"),
     db.getAll("routines"),
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
@@ -516,6 +568,11 @@ export async function loadAll(): Promise<{
     dinners,
     screenTimeSettings,
     screenTimeDays,
+    nattningSchedules: nattningSchedules.map((row) => ({
+      personId: row.personId,
+      parentByWeekday: normalizeParentByWeekday(row.parentByWeekday),
+    })),
+    nattningDayOverrides,
     routines: routines.map(normalizeRoutine),
     routineProgress,
     recurringTemplates,
@@ -549,6 +606,8 @@ export async function deletePerson(id: string) {
     rewardAwards,
     screenSettings,
     screenDays,
+    nattningSchedules,
+    nattningDayOverrides,
   ] = await Promise.all([
     db.getAll("events"),
     db.getAll("routines"),
@@ -561,6 +620,8 @@ export async function deletePerson(id: string) {
     db.getAll("rewardAwards"),
     db.getAll("screenTimeSettings"),
     db.getAll("screenTimeDays"),
+    db.getAll("nattningSchedules"),
+    db.getAll("nattningDayOverrides"),
   ]);
 
   const routineIds = new Set(
@@ -584,6 +645,8 @@ export async function deletePerson(id: string) {
       "rewardAwards",
       "screenTimeSettings",
       "screenTimeDays",
+      "nattningSchedules",
+      "nattningDayOverrides",
     ],
     "readwrite",
   );
@@ -625,6 +688,27 @@ export async function deletePerson(id: string) {
     ...screenDays
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("screenTimeDays").delete(row.id)),
+    ...nattningSchedules
+      .filter((row) => row.personId === id)
+      .map((row) =>
+        tx.objectStore("nattningSchedules").delete(row.personId),
+      ),
+    ...nattningSchedules
+      .filter((row) => row.personId !== id)
+      .filter((row) => row.parentByWeekday.includes(id))
+      .map((row) =>
+        tx.objectStore("nattningSchedules").put({
+          personId: row.personId,
+          parentByWeekday: normalizeParentByWeekday(
+            row.parentByWeekday.map((parentId) =>
+              parentId === id ? null : parentId,
+            ),
+          ),
+        }),
+      ),
+    ...nattningDayOverrides
+      .filter((row) => row.personId === id || row.parentId === id)
+      .map((row) => tx.objectStore("nattningDayOverrides").delete(row.id)),
     tx.done,
   ]);
 }
@@ -671,6 +755,24 @@ export async function putScreenTimeSettings(settings: ScreenTimeSettings) {
 export async function putScreenTimeDay(day: ScreenTimeDay) {
   const db = await getDb();
   await db.put("screenTimeDays", day);
+}
+
+export async function putNattningSchedule(schedule: NattningSchedule) {
+  const db = await getDb();
+  await db.put("nattningSchedules", {
+    personId: schedule.personId,
+    parentByWeekday: normalizeParentByWeekday(schedule.parentByWeekday),
+  });
+}
+
+export async function putNattningDayOverride(override: NattningDayOverride) {
+  const db = await getDb();
+  await db.put("nattningDayOverrides", override);
+}
+
+export async function deleteNattningDayOverride(id: string) {
+  const db = await getDb();
+  await db.delete("nattningDayOverrides", id);
 }
 
 export async function ensureScreenTimeDay(
@@ -898,6 +1000,8 @@ export async function resetToSeed() {
       "dinners",
       "screenTimeSettings",
       "screenTimeDays",
+      "nattningSchedules",
+      "nattningDayOverrides",
       "routines",
       "routineProgress",
       "recurringTemplates",
@@ -916,6 +1020,8 @@ export async function resetToSeed() {
     tx.objectStore("dinners").clear(),
     tx.objectStore("screenTimeSettings").clear(),
     tx.objectStore("screenTimeDays").clear(),
+    tx.objectStore("nattningSchedules").clear(),
+    tx.objectStore("nattningDayOverrides").clear(),
     tx.objectStore("routines").clear(),
     tx.objectStore("routineProgress").clear(),
     tx.objectStore("recurringTemplates").clear(),
@@ -930,6 +1036,12 @@ export async function resetToSeed() {
     ...SEED_DINNERS.map((dinner) => tx.objectStore("dinners").put(dinner)),
     ...SEED_SCREEN_TIME.map((row) =>
       tx.objectStore("screenTimeSettings").put(row),
+    ),
+    ...SEED_NATTNING.map((row) =>
+      tx.objectStore("nattningSchedules").put({
+        personId: row.personId,
+        parentByWeekday: normalizeParentByWeekday(row.parentByWeekday),
+      }),
     ),
     ...SEED_ROUTINES.map((row) => tx.objectStore("routines").put(row)),
     ...SEED_TEMPLATES.map((row) =>

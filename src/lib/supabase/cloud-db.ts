@@ -21,6 +21,7 @@ import {
   loadFamilyPayload,
   saveFamilyPayload,
 } from "@/lib/supabase/family";
+import { normalizeParentByWeekday } from "@/lib/nattning";
 import { routineProgressId, screenTimeDayId } from "@/lib/seed";
 import type {
   CalendarSubscription,
@@ -28,6 +29,8 @@ import type {
   Event,
   FamilyData,
   IdagWidgetPlacement,
+  NattningDayOverride,
+  NattningSchedule,
   Person,
   RecurringTemplate,
   Routine,
@@ -116,6 +119,11 @@ function sortPayload(payload: FamilyData) {
       a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "sv"),
   );
   payload.rewardAwards.sort((a, b) => a.date.localeCompare(b.date));
+  payload.nattningSchedules = (payload.nattningSchedules ?? []).map((row) => ({
+    personId: row.personId,
+    parentByWeekday: normalizeParentByWeekday(row.parentByWeekday),
+  }));
+  payload.nattningDayOverrides = payload.nattningDayOverrides ?? [];
   payload.idagLayouts = normalizeIdagLayouts(
     payload.idagLayouts ??
       (payload as { idagLayout?: unknown }).idagLayout,
@@ -219,6 +227,19 @@ export async function cloudDeletePerson(id: string) {
       (s) => s.personId !== id,
     );
     data.screenTimeDays = data.screenTimeDays.filter((d) => d.personId !== id);
+    data.nattningSchedules = (data.nattningSchedules ?? [])
+      .filter((s) => s.personId !== id)
+      .map((s) => ({
+        personId: s.personId,
+        parentByWeekday: normalizeParentByWeekday(
+          s.parentByWeekday.map((parentId) =>
+            parentId === id ? null : parentId,
+          ),
+        ),
+      }));
+    data.nattningDayOverrides = (data.nattningDayOverrides ?? []).filter(
+      (o) => o.personId !== id && o.parentId !== id,
+    );
   });
 }
 
@@ -271,6 +292,40 @@ export async function cloudPutScreenTimeDay(day: ScreenTimeDay) {
     const idx = data.screenTimeDays.findIndex((d) => d.id === day.id);
     if (idx >= 0) data.screenTimeDays[idx] = day;
     else data.screenTimeDays.push(day);
+  });
+}
+
+export async function cloudPutNattningSchedule(schedule: NattningSchedule) {
+  await update((data) => {
+    const next: NattningSchedule = {
+      personId: schedule.personId,
+      parentByWeekday: normalizeParentByWeekday(schedule.parentByWeekday),
+    };
+    const schedules = data.nattningSchedules ?? [];
+    const idx = schedules.findIndex((s) => s.personId === next.personId);
+    if (idx >= 0) schedules[idx] = next;
+    else schedules.push(next);
+    data.nattningSchedules = schedules;
+  });
+}
+
+export async function cloudPutNattningDayOverride(
+  override: NattningDayOverride,
+) {
+  await update((data) => {
+    const overrides = data.nattningDayOverrides ?? [];
+    const idx = overrides.findIndex((o) => o.id === override.id);
+    if (idx >= 0) overrides[idx] = override;
+    else overrides.push(override);
+    data.nattningDayOverrides = overrides;
+  });
+}
+
+export async function cloudDeleteNattningDayOverride(id: string) {
+  await update((data) => {
+    data.nattningDayOverrides = (data.nattningDayOverrides ?? []).filter(
+      (o) => o.id !== id,
+    );
   });
 }
 

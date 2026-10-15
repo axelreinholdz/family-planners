@@ -6,10 +6,6 @@ import { mondayWeekdayIndex, todayKey } from "@/lib/dates";
 import { compareRoutines, routineVisibleNow } from "@/lib/routines";
 import type { IdagWidgetOrientation, Person, Routine } from "@/lib/types";
 
-/**
- * Fixed step-card height (use `h-*`, not `min-h-*`).
- * `.tap-target` sets min-height: 44px after utilities and would override min-h-*.
- */
 function StepCard({
   emoji,
   label,
@@ -29,10 +25,10 @@ function StepCard({
       type="button"
       onClick={onToggle}
       aria-pressed={done}
-      className={`tap-target relative flex h-[6.5rem] items-center justify-center gap-1.5 rounded-2xl ring-2 transition ${
+      className={`tap-target relative flex items-center justify-center rounded-2xl ring-2 transition ${
         column
-          ? "w-full shrink-0 flex-row gap-3 px-4 py-3"
-          : "min-w-0 flex-1 flex-col px-2 py-3"
+          ? "h-[6.5rem] w-full shrink-0 flex-row gap-3 px-4 py-3"
+          : "routine-step-row h-full min-h-[7.5rem] min-w-0 flex-1 flex-col px-2 py-3"
       } ${
         done
           ? "bg-[var(--accent)] text-white ring-[var(--accent-deep)] shadow-md"
@@ -41,27 +37,37 @@ function StepCard({
     >
       {done ? (
         <span
-          className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm font-black text-[var(--accent-deep)] shadow ring-1 ring-[var(--accent-deep)]"
+          className={`absolute right-1.5 top-1.5 flex items-center justify-center rounded-full bg-white font-black text-[var(--accent-deep)] shadow ring-1 ring-[var(--accent-deep)] ${
+            column
+              ? "h-6 w-6 text-sm"
+              : "routine-step-check"
+          }`}
           aria-hidden
         >
           ✓
         </span>
       ) : null}
       <span
-        className={`text-4xl leading-none ${done ? "opacity-90" : ""}`}
+        className={`routine-step-emoji shrink-0 leading-none ${
+          column ? "text-4xl" : ""
+        } ${done ? "opacity-90" : ""}`}
         aria-hidden
       >
         {emoji}
       </span>
       <span
-        className={`max-w-full truncate px-0.5 font-display text-base font-bold ${
-          column ? "min-w-0 flex-1 text-left" : "text-center"
+        className={`routine-step-label max-w-full shrink-0 px-0.5 font-display font-bold leading-tight ${
+          column
+            ? "min-w-0 flex-1 truncate text-left text-base"
+            : "line-clamp-2 text-center"
         } ${done ? "text-white" : "text-[var(--ink)]"}`}
       >
         {label}
       </span>
       <span
-        className={`rounded-full px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wide ${
+        className={`routine-step-badge shrink-0 rounded-full font-extrabold uppercase tracking-wide ${
+          column ? "px-2.5 py-0.5 text-xs" : ""
+        } ${
           done
             ? "bg-white text-[var(--accent-deep)]"
             : "bg-white/70 text-[var(--ink-faint)]"
@@ -126,7 +132,14 @@ export function RoutinesWidget({
         );
 
         return (
-          <div key={routine.id} className="flex shrink-0 flex-col">
+          <div
+            key={routine.id}
+            className={
+              column
+                ? "flex shrink-0 flex-col"
+                : "flex min-h-0 flex-1 flex-col"
+            }
+          >
             <div className="mb-3 flex shrink-0 items-end justify-between gap-3">
               <div>
                 <h3 className="font-display text-xl font-bold text-[var(--ink)]">
@@ -139,7 +152,9 @@ export function RoutinesWidget({
             </div>
             <div
               className={
-                column ? "flex flex-col gap-2" : "flex flex-nowrap gap-2"
+                column
+                  ? "flex flex-col gap-2"
+                  : "flex min-h-0 flex-1 flex-nowrap items-stretch gap-2"
               }
             >
               {steps.map((step) => {

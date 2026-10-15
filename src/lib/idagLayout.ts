@@ -35,7 +35,7 @@ export const IDAG_WIDGET_SIZES: IdagWidgetSize[] = ["S", "M", "L", "XL"];
 /**
  * Sizes offered in Ordna.
  * - dinner / schoolLunch / rewards: none (always 2×1 — width 2, height 1)
- * - screenTime: none (always M / 2×2)
+ * - screenTime / nattning: none (always M / 2×2)
  * - routines: none (always XL; only Rad/Kolumn)
  * - others: M–XL
  */
@@ -45,6 +45,7 @@ export function allowedSizesForWidget(
   if (
     type === "routines" ||
     type === "screenTime" ||
+    type === "nattning" ||
     type === "dinner" ||
     type === "schoolLunch" ||
     type === "rewards"
@@ -59,7 +60,7 @@ export function clampWidgetSize(
   size: IdagWidgetSize,
 ): IdagWidgetSize {
   if (type === "routines") return "XL";
-  if (type === "screenTime") return "M";
+  if (type === "screenTime" || type === "nattning") return "M";
   // Stored as S; footprint overrides to 2×1 for dinner / school lunch / rewards.
   if (type === "dinner" || type === "schoolLunch" || type === "rewards") {
     return "S";
@@ -597,6 +598,13 @@ export const IDAG_WIDGET_CATALOG: IdagWidgetCatalogEntry[] = [
     defaultSize: "S", // footprint forced to 2×1
     phase: 1,
   },
+  {
+    type: "nattning",
+    label: "Nattning",
+    description: "Vem som lägger barnet ikväll",
+    defaultSize: "M",
+    phase: 1,
+  },
   // Phase 2 — not built yet
   {
     type: "todosToday",
@@ -658,6 +666,7 @@ export const PHASE1_WIDGET_TYPES: IdagWidgetType[] = [
   "routines",
   "schoolLunch",
   "rewards",
+  "nattning",
 ];
 
 /** Default layout with explicit snap positions (gaps allowed). */

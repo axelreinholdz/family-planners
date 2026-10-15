@@ -28,6 +28,7 @@ import {
   deleteRewardAward as dbDeleteRewardAward,
   deleteRoutine as dbDeleteRoutine,
   deleteSchoolLunchFeed as dbDeleteSchoolLunchFeed,
+  deleteNattningDayOverride as dbDeleteNattningDayOverride,
   deleteTodo as dbDeleteTodo,
   ensureScreenTimeDay,
   loadAll,
@@ -37,6 +38,8 @@ import {
   putIdagLayout,
   putIdagLayoutLocked,
   putVisibleKitchenPages,
+  putNattningDayOverride,
+  putNattningSchedule,
   putPerson,
   putRecurringTemplate,
   putRewardActivity,
@@ -51,6 +54,10 @@ import {
   saveDinnerMenu,
 } from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
+import {
+  nattningDayId,
+  normalizeParentByWeekday,
+} from "@/lib/nattning";
 import {
   clampAwardStars,
   normalizeRewardActivity,
@@ -85,6 +92,8 @@ import type {
   IconKey,
   IdagWidgetPlacement,
   KitchenPageId,
+  NattningDayOverride,
+  NattningSchedule,
   Person,
   PersonRole,
   RecurringTemplate,
@@ -107,6 +116,8 @@ interface FamilyStoreValue {
   dinners: DinnerPlan[];
   screenTimeSettings: ScreenTimeSettings[];
   screenTimeDays: ScreenTimeDay[];
+  nattningSchedules: NattningSchedule[];
+  nattningDayOverrides: NattningDayOverride[];
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
@@ -159,6 +170,18 @@ interface FamilyStoreValue {
     deltaMinutes: number,
   ) => Promise<void>;
   resetScreenTimeToday: (personId: string) => Promise<void>;
+  getNattningSchedule: (personId: string) => NattningSchedule | undefined;
+  getNattningDayOverride: (
+    personId: string,
+    date?: string,
+  ) => NattningDayOverride | undefined;
+  saveNattningSchedule: (schedule: NattningSchedule) => Promise<void>;
+  setNattningDayOverride: (
+    personId: string,
+    parentId: string,
+    date?: string,
+  ) => Promise<void>;
+  clearNattningDayOverride: (personId: string, date?: string) => Promise<void>;
   toggleRoutineStep: (routineId: string, stepId: string) => Promise<void>;
   saveRoutine: (routine: Routine) => Promise<void>;
   createRoutine: (input: Omit<Routine, "id">) => Promise<void>;
@@ -232,6 +255,12 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     ScreenTimeSettings[]
   >([]);
   const [screenTimeDays, setScreenTimeDays] = useState<ScreenTimeDay[]>([]);
+  const [nattningSchedules, setNattningSchedules] = useState<
+    NattningSchedule[]
+  >([]);
+  const [nattningDayOverrides, setNattningDayOverrides] = useState<
+    NattningDayOverride[]
+  >([]);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineProgress, setRoutineProgress] = useState<RoutineDayProgress[]>(
     [],
@@ -266,6 +295,13 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setDinners(data.dinners);
       setScreenTimeSettings(data.screenTimeSettings);
       setScreenTimeDays(data.screenTimeDays);
+      setNattningSchedules(
+        (data.nattningSchedules ?? []).map((row) => ({
+          personId: row.personId,
+          parentByWeekday: normalizeParentByWeekday(row.parentByWeekday),
+        })),
+      );
+      setNattningDayOverrides(data.nattningDayOverrides ?? []);
       setRoutines(data.routines);
       setRoutineProgress(data.routineProgress);
       setRecurringTemplates(data.recurringTemplates);
@@ -648,6 +684,52 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       }
     },
     [refresh, screenTimeSettings],
+  );
+
+  const getNattningSchedule = useCallback(
+    (personId: string) =>
+      nattningSchedules.find((row) => row.personId === personId),
+    [nattningSchedules],
+  );
+
+  const getNattningDayOverride = useCallback(
+    (personId: string, date = todayKey()) =>
+      nattningDayOverrides.find(
+        (row) => row.id === nattningDayId(personId, date),
+      ),
+    [nattningDayOverrides],
+  );
+
+  const saveNattningSchedule = useCallback(
+    async (schedule: NattningSchedule) => {
+      await putNattningSchedule({
+        personId: schedule.personId,
+        parentByWeekday: normalizeParentByWeekday(schedule.parentByWeekday),
+      });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const setNattningDayOverride = useCallback(
+    async (personId: string, parentId: string, date = todayKey()) => {
+      await putNattningDayOverride({
+        id: nattningDayId(personId, date),
+        personId,
+        date,
+        parentId,
+      });
+      await refresh();
+    },
+    [refresh],
+  );
+
+  const clearNattningDayOverride = useCallback(
+    async (personId: string, date = todayKey()) => {
+      await dbDeleteNattningDayOverride(nattningDayId(personId, date));
+      await refresh();
+    },
+    [refresh],
   );
 
   const toggleRoutineStep = useCallback(
@@ -1074,6 +1156,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       dinners,
       screenTimeSettings,
       screenTimeDays,
+      nattningSchedules,
+      nattningDayOverrides,
       routines,
       routineProgress,
       recurringTemplates,
@@ -1108,6 +1192,11 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       addScreenTimeBonus,
       adjustScreenTimeUsed,
       resetScreenTimeToday,
+      getNattningSchedule,
+      getNattningDayOverride,
+      saveNattningSchedule,
+      setNattningDayOverride,
+      clearNattningDayOverride,
       toggleRoutineStep,
       saveRoutine,
       createRoutine,
@@ -1145,6 +1234,8 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       dinners,
       screenTimeSettings,
       screenTimeDays,
+      nattningSchedules,
+      nattningDayOverrides,
       routines,
       routineProgress,
       recurringTemplates,
@@ -1179,6 +1270,11 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       addScreenTimeBonus,
       adjustScreenTimeUsed,
       resetScreenTimeToday,
+      getNattningSchedule,
+      getNattningDayOverride,
+      saveNattningSchedule,
+      setNattningDayOverride,
+      clearNattningDayOverride,
       toggleRoutineStep,
       saveRoutine,
       createRoutine,

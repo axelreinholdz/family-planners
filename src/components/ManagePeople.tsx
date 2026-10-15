@@ -74,7 +74,7 @@ export function ManagePeople() {
               onDelete={() => {
                 if (
                   !window.confirm(
-                    `Ta bort ${person.name}? Aktiviteter, rutiner och skärmtid för personen raderas.`,
+                    `Ta bort ${person.name}? Aktiviteter, rutiner, skärmtid och nattning för personen raderas.`,
                   )
                 ) {
                   return;

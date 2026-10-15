@@ -23,6 +23,7 @@ import {
 } from "@/components/idag/widgets/RoutinesWidget";
 import { RewardsWidget } from "@/components/idag/widgets/RewardsWidget";
 import { SchoolLunchWidget } from "@/components/idag/widgets/SchoolLunchWidget";
+import { NattningWidget } from "@/components/idag/widgets/NattningWidget";
 import { ScreenTimeWidget } from "@/components/idag/widgets/ScreenTimeWidget";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { mondayWeekdayIndex } from "@/lib/dates";
@@ -122,10 +123,12 @@ function WidgetBody({
   type,
   child,
   orientation,
+  editing,
 }: {
   type: IdagWidgetType;
   child: Person | undefined;
   orientation: IdagWidgetOrientation;
+  editing: boolean;
 }) {
   switch (type) {
     case "screenTime":
@@ -140,6 +143,8 @@ function WidgetBody({
       return <SchoolLunchWidget child={child} />;
     case "rewards":
       return <RewardsWidget child={child} />;
+    case "nattning":
+      return <NattningWidget child={child} editing={editing} />;
     default:
       return null;
   }
@@ -375,6 +380,7 @@ function DraggableWidgetCard({
           type={placement.type}
           child={child}
           orientation={orientation}
+          editing={editing}
         />
       </div>
     </section>
@@ -406,6 +412,7 @@ function WidgetPreview({
         type={placement.type}
         child={child}
         orientation={orientation}
+        editing
       />
     </section>
   );

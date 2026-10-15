@@ -122,6 +122,22 @@ export interface ScreenTimeDay {
   activeStartedAt?: string; // ISO if a session is running
 }
 
+/** Weekly bedtime parent per child. Weekdays Monday-start 0–6. */
+export interface NattningSchedule {
+  personId: string; // child
+  /** Length 7; each entry is a parent id or null if unset. */
+  parentByWeekday: (string | null)[];
+}
+
+/** One-day override when someone else puts the child to bed. */
+export interface NattningDayOverride {
+  /** Composite key: `${personId}:${date}` */
+  id: string;
+  personId: string; // child
+  date: string; // YYYY-MM-DD
+  parentId: string;
+}
+
 export interface DinnerPlan {
   weekday: number; // 0=mån … 6=sön
   title: string;
@@ -184,7 +200,8 @@ export type IdagWidgetType =
   | "nextEvents"
   | "routines"
   | "schoolLunch"
-  | "rewards";
+  | "rewards"
+  | "nattning";
 
 /**
  * Widget footprint on the 8-column Idag grid (iOS/Android-style).
@@ -224,6 +241,8 @@ export interface FamilyData {
   dinners: DinnerPlan[];
   screenTimeSettings: ScreenTimeSettings[];
   screenTimeDays: ScreenTimeDay[];
+  nattningSchedules: NattningSchedule[];
+  nattningDayOverrides: NattningDayOverride[];
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];

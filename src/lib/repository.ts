@@ -18,6 +18,8 @@ import type {
   RewardActivity,
   RewardAward,
   KitchenPageId,
+  NattningDayOverride,
+  NattningSchedule,
   SchoolLunchDay,
   SchoolLunchFeed,
   ScreenTimeDay,
@@ -96,6 +98,21 @@ export async function ensureScreenTimeDay(
 ): Promise<ScreenTimeDay> {
   if (cloudMode) return cloud.cloudEnsureScreenTimeDay(personId, date);
   return local.ensureScreenTimeDay(personId, date);
+}
+
+export async function putNattningSchedule(schedule: NattningSchedule) {
+  if (cloudMode) return cloud.cloudPutNattningSchedule(schedule);
+  return local.putNattningSchedule(schedule);
+}
+
+export async function putNattningDayOverride(override: NattningDayOverride) {
+  if (cloudMode) return cloud.cloudPutNattningDayOverride(override);
+  return local.putNattningDayOverride(override);
+}
+
+export async function deleteNattningDayOverride(id: string) {
+  if (cloudMode) return cloud.cloudDeleteNattningDayOverride(id);
+  return local.deleteNattningDayOverride(id);
 }
 
 export async function putRoutine(routine: Routine) {

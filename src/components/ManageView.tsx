@@ -10,6 +10,7 @@ import { ManageModal } from "@/components/ManageModal";
 import { ManageRecurring } from "@/components/ManageRecurring";
 import { ManageRoutines } from "@/components/ManageRoutines";
 import { ManageSchoolLunch } from "@/components/ManageSchoolLunch";
+import { ManageNattning } from "@/components/ManageNattning";
 import { ManageScreenTime } from "@/components/ManageScreenTime";
 import { ManageSettings } from "@/components/ManageSettings";
 import { MicButton } from "@/components/MicButton";
@@ -39,6 +40,7 @@ type Tab =
   | "dinners"
   | "schoolLunch"
   | "screentime"
+  | "nattning"
   | "settings";
 
 export function ManageView({ onBack }: ManageViewProps) {
@@ -160,6 +162,7 @@ export function ManageView({ onBack }: ManageViewProps) {
             ["dinners", "Middagsmeny"],
             ["schoolLunch", "Skolmat"],
             ["screentime", "Skärmtid"],
+            ["nattning", "Nattning"],
             ["settings", "Inställningar"],
           ] as const
         ).map(([id, label]) => (
@@ -369,6 +372,8 @@ export function ManageView({ onBack }: ManageViewProps) {
       {tab === "schoolLunch" ? <ManageSchoolLunch /> : null}
 
       {tab === "screentime" ? <ManageScreenTime /> : null}
+
+      {tab === "nattning" ? <ManageNattning /> : null}
 
       {tab === "settings" ? <ManageSettings /> : null}
     </div>

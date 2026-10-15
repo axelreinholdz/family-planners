@@ -3,6 +3,7 @@ import { getIconEmoji } from "./icons";
 import type {
   DinnerPlan,
   Event,
+  NattningSchedule,
   Person,
   RecurringTemplate,
   Routine,
@@ -12,6 +13,8 @@ import type {
 
 export const EBBE_ID = "child-ebbe";
 export const LILLE_ID = "child-lille";
+export const MAMMA_ID = "parent-mamma";
+export const PAPPA_ID = "parent-pappa";
 
 export const TEMPLATE_EBBE_PRESCHOOL = "tpl-ebbe-preschool";
 export const TEMPLATE_LILLE_PRESCHOOL = "tpl-lille-preschool";
@@ -21,7 +24,7 @@ export const ROUTINE_LILLE_MORNING = "routine-lille-morning";
 
 export const SEED_PEOPLE: Person[] = [
   {
-    id: "parent-mamma",
+    id: MAMMA_ID,
     name: "Mamma",
     role: "parent",
     color: "#E07A5F",
@@ -29,7 +32,7 @@ export const SEED_PEOPLE: Person[] = [
     sortOrder: 0,
   },
   {
-    id: "parent-pappa",
+    id: PAPPA_ID,
     name: "Pappa",
     role: "parent",
     color: "#3D5A80",
@@ -74,6 +77,34 @@ export const SEED_SCREEN_TIME: ScreenTimeSettings[] = [
     personId: LILLE_ID,
     dailyMinutes: 30,
     enabled: true,
+  },
+];
+
+/** Alternate Mamma/Pappa through the week (Mon–Sun). */
+export const SEED_NATTNING: NattningSchedule[] = [
+  {
+    personId: EBBE_ID,
+    parentByWeekday: [
+      MAMMA_ID,
+      PAPPA_ID,
+      MAMMA_ID,
+      PAPPA_ID,
+      MAMMA_ID,
+      PAPPA_ID,
+      MAMMA_ID,
+    ],
+  },
+  {
+    personId: LILLE_ID,
+    parentByWeekday: [
+      PAPPA_ID,
+      MAMMA_ID,
+      PAPPA_ID,
+      MAMMA_ID,
+      PAPPA_ID,
+      MAMMA_ID,
+      PAPPA_ID,
+    ],
   },
 ];
 

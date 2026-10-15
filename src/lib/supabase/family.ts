@@ -3,6 +3,7 @@ import {
   buildSeedEvents,
   buildSeedTodos,
   SEED_DINNERS,
+  SEED_NATTNING,
   SEED_PEOPLE,
   SEED_ROUTINES,
   SEED_SCREEN_TIME,
@@ -14,6 +15,7 @@ import {
   weekAnchorsBetween,
 } from "@/lib/recurring";
 import { normalizeIdagLayouts } from "@/lib/idagLayout";
+import { normalizeParentByWeekday } from "@/lib/nattning";
 import { normalizeRoutine } from "@/lib/routines";
 import { DEFAULT_VISIBLE_KITCHEN_PAGES, normalizeVisibleKitchenPages } from "@/lib/kitchenPages";
 import type { FamilyData } from "@/lib/types";
@@ -30,6 +32,8 @@ export function emptyFamilyData(): FamilyData {
     dinners: [],
     screenTimeSettings: [],
     screenTimeDays: [],
+    nattningSchedules: [],
+    nattningDayOverrides: [],
     routines: [],
     routineProgress: [],
     recurringTemplates: [],
@@ -71,6 +75,11 @@ export function buildSeedFamilyData(): FamilyData {
     dinners: SEED_DINNERS.map((d) => ({ ...d })),
     screenTimeSettings: SEED_SCREEN_TIME.map((s) => ({ ...s })),
     screenTimeDays: [],
+    nattningSchedules: SEED_NATTNING.map((s) => ({
+      ...s,
+      parentByWeekday: [...s.parentByWeekday],
+    })),
+    nattningDayOverrides: [],
     routines: SEED_ROUTINES.map((r) => ({
       ...r,
       steps: r.steps.map((s) => ({ ...s })),
@@ -263,6 +272,14 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
     dinners: partial.dinners ?? base.dinners,
     screenTimeSettings: partial.screenTimeSettings ?? base.screenTimeSettings,
     screenTimeDays: partial.screenTimeDays ?? base.screenTimeDays,
+    nattningSchedules: (partial.nattningSchedules ?? base.nattningSchedules).map(
+      (row) => ({
+        personId: row.personId,
+        parentByWeekday: normalizeParentByWeekday(row.parentByWeekday),
+      }),
+    ),
+    nattningDayOverrides:
+      partial.nattningDayOverrides ?? base.nattningDayOverrides,
     routines: (partial.routines ?? base.routines).map(normalizeRoutine),
     routineProgress: partial.routineProgress ?? base.routineProgress,
     recurringTemplates: partial.recurringTemplates ?? base.recurringTemplates,
