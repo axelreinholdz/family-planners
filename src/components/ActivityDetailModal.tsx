@@ -49,6 +49,8 @@ interface ActivityDetailModalProps {
   onRemoveOccurrence?: () => Promise<void> | void;
   /** Remove the whole recurring series (template + all linked activities). */
   onRemoveSeries?: () => Promise<void> | void;
+  /** Remove the whole imported calendar subscription and its activities. */
+  onRemoveCalendar?: () => Promise<void> | void;
 }
 
 export function ActivityDetailModal({
@@ -58,6 +60,7 @@ export function ActivityDetailModal({
   onClose,
   onRemoveOccurrence,
   onRemoveSeries,
+  onRemoveCalendar,
 }: ActivityDetailModalProps) {
   const fromCalendar = Boolean(event.calendarSubscriptionId);
   const isRecurring = Boolean(event.templateId);
@@ -187,6 +190,13 @@ export function ActivityDetailModal({
               <DetailRow label="Kalender">{subscription.name}</DetailRow>
             ) : null}
 
+            {fromCalendar && !subscription ? (
+              <p className="text-sm font-semibold text-amber-800">
+                Kalenderprenumerationen saknas i Hantera. Du kan ta bort alla
+                aktiviteter från den här importen nedan.
+              </p>
+            ) : null}
+
             {fromCalendar &&
             !event.location &&
             !event.description &&
@@ -196,6 +206,28 @@ export function ActivityDetailModal({
               </p>
             ) : null}
           </div>
+
+          {fromCalendar && onRemoveCalendar ? (
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const label = subscription?.name ?? "den importerade kalendern";
+                  if (
+                    window.confirm(
+                      `Ta bort ${label} och alla synkade aktiviteter?`,
+                    )
+                  ) {
+                    void runAction(onRemoveCalendar);
+                  }
+                }}
+                className="tap-target rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
+              >
+                Ta bort importerad kalender
+              </button>
+            </div>
+          ) : null}
 
           {!fromCalendar && onRemoveOccurrence ? (
             <div className="mt-4 flex flex-col gap-2">

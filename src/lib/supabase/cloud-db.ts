@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { recoverOrphanCalendarSubscriptions } from "@/lib/calendarSync";
 import {
   applySpanForTemplate,
   eventsFromTemplates,
@@ -159,25 +160,39 @@ export async function cloudLoadAll(): Promise<FamilyData> {
   return enqueueWrite(async () => {
     clearCloudCache();
     const payload = await readPayload();
-    const enabled = payload.recurringTemplates.filter((t) => t.enabled);
-    if (enabled.length === 0) return payload;
 
-    let fromKey = applySpanForTemplate(enabled[0]).fromKey;
-    let toKey = applySpanForTemplate(enabled[0]).toKey;
-    for (const template of enabled) {
-      const span = applySpanForTemplate(template);
-      if (span.fromKey < fromKey) fromKey = span.fromKey;
-      if (span.toKey > toKey) toKey = span.toKey;
-    }
-    const created = eventsFromTemplatesForWeeks(
-      enabled,
+    const recovered = recoverOrphanCalendarSubscriptions(
+      payload.calendarSubscriptions,
       payload.events,
-      weekAnchorsBetween(fromKey, toKey),
-      newId,
-      payload.recurringExceptions ?? [],
     );
-    if (created.length > 0) {
-      payload.events.push(...created);
+    if (recovered.recoveredIds.length > 0) {
+      payload.calendarSubscriptions = recovered.subscriptions;
+    }
+
+    const enabled = payload.recurringTemplates.filter((t) => t.enabled);
+    let createdCount = 0;
+    if (enabled.length > 0) {
+      let fromKey = applySpanForTemplate(enabled[0]).fromKey;
+      let toKey = applySpanForTemplate(enabled[0]).toKey;
+      for (const template of enabled) {
+        const span = applySpanForTemplate(template);
+        if (span.fromKey < fromKey) fromKey = span.fromKey;
+        if (span.toKey > toKey) toKey = span.toKey;
+      }
+      const created = eventsFromTemplatesForWeeks(
+        enabled,
+        payload.events,
+        weekAnchorsBetween(fromKey, toKey),
+        newId,
+        payload.recurringExceptions ?? [],
+      );
+      if (created.length > 0) {
+        payload.events.push(...created);
+        createdCount = created.length;
+      }
+    }
+
+    if (createdCount > 0 || recovered.recoveredIds.length > 0) {
       return writePayload(payload);
     }
     return payload;
@@ -189,6 +204,13 @@ async function update(
 ): Promise<void> {
   await enqueueWrite(async () => {
     const data = await readPayload({ fresh: true });
+    // Keep subscription rows for any calendar-linked events still present so a
+    // write cannot leave Kalendrar empty while week events remain.
+    const recovered = recoverOrphanCalendarSubscriptions(
+      data.calendarSubscriptions,
+      data.events,
+    );
+    data.calendarSubscriptions = recovered.subscriptions;
     await mutator(data);
     await writePayload(data);
   });

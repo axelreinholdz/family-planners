@@ -54,6 +54,9 @@ function fieldsFromSubscription(
 
 function formatSyncMeta(subscription: CalendarSubscription): string {
   const range = `${subscription.startDate} – ${subscription.endDate}`;
+  if (!subscription.url.trim()) {
+    return `${range} · saknar ICS-URL`;
+  }
   if (subscription.lastError) return `${range} · fel`;
   if (subscription.lastSyncedAt) {
     const when = new Date(subscription.lastSyncedAt);
@@ -66,6 +69,15 @@ function formatSyncMeta(subscription: CalendarSubscription): string {
     return `${range} · ${label}`;
   }
   return `${range} · inte synkad`;
+}
+
+function eventCountForSubscription(
+  subscriptionId: string,
+  events: { calendarSubscriptionId?: string }[],
+): number {
+  return events.filter(
+    (event) => event.calendarSubscriptionId === subscriptionId,
+  ).length;
 }
 
 function CalendarFormFields({
@@ -179,6 +191,7 @@ const ALL_CHILDREN = "__all__";
 export function ManageCalendars() {
   const {
     people,
+    events,
     calendarSubscriptions,
     createCalendarSubscription,
     saveCalendarSubscription,
@@ -356,6 +369,11 @@ export function ManageCalendars() {
           {filtered.map((subscription) => {
             const isEditing = editingId === subscription.id;
             const owner = personById.get(subscription.personId);
+            const linkedCount = eventCountForSubscription(
+              subscription.id,
+              events,
+            );
+            const needsUrl = !subscription.url.trim();
             return (
               <CalendarRow
                 key={subscription.id}
@@ -367,6 +385,8 @@ export function ManageCalendars() {
                     : "Okänt barn"
                 }
                 showOwner={filterPersonId === ALL_CHILDREN || !owner}
+                linkedCount={linkedCount}
+                needsUrl={needsUrl}
                 isEditing={isEditing}
                 syncing={syncingId === subscription.id}
                 onToggleEdit={() =>
@@ -406,9 +426,10 @@ export function ManageCalendars() {
                       fields.emoji ||
                       getIconEmoji(fields.iconKey) ||
                       undefined,
-                    enabled: fields.enabled,
+                    enabled: true,
                     startDate: fields.startDate,
                     endDate: fields.endDate,
+                    lastError: undefined,
                   }).then(() => {
                     setEditingId(null);
                     void runSync(subscription.id);
@@ -454,6 +475,8 @@ function CalendarRow({
   subscription,
   ownerLabel,
   showOwner,
+  linkedCount,
+  needsUrl,
   isEditing,
   syncing,
   onToggleEdit,
@@ -466,6 +489,8 @@ function CalendarRow({
   subscription: CalendarSubscription;
   ownerLabel: string;
   showOwner: boolean;
+  linkedCount: number;
+  needsUrl: boolean;
   isEditing: boolean;
   syncing: boolean;
   onToggleEdit: () => void;
@@ -496,17 +521,23 @@ function CalendarRow({
           ) : null}
           <p className="truncate text-sm text-[var(--ink-muted)]">
             {formatSyncMeta(subscription)}
+            {linkedCount > 0 ? ` · ${linkedCount} aktiviteter` : ""}
           </p>
           {subscription.lastError ? (
-            <p className="truncate text-sm font-semibold text-red-700">
+            <p className="text-sm font-semibold text-red-700">
               {subscription.lastError}
+            </p>
+          ) : null}
+          {needsUrl ? (
+            <p className="text-sm font-semibold text-amber-800">
+              Öppna Ändra och klistra in ICS-URL, eller ta bort kalendern.
             </p>
           ) : null}
         </div>
         <button
           type="button"
           onClick={onSync}
-          disabled={syncing || !subscription.enabled}
+          disabled={syncing || !subscription.enabled || needsUrl}
           className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--accent-deep)] disabled:opacity-40"
         >
           {syncing ? "Synkar…" : "Uppdatera"}
@@ -514,7 +545,8 @@ function CalendarRow({
         <button
           type="button"
           onClick={onToggleEnabled}
-          className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--ink-muted)]"
+          disabled={needsUrl}
+          className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--ink-muted)] disabled:opacity-40"
         >
           {subscription.enabled ? "Pausa" : "Aktivera"}
         </button>

@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { todayKey } from "./dates";
+import { recoverOrphanCalendarSubscriptions } from "./calendarSync";
 import {
   applySpanForTemplate,
   eventsFromTemplates,
@@ -580,7 +581,6 @@ export async function loadAll(): Promise<{
     (a, b) =>
       a.date.localeCompare(b.date) || a.templateId.localeCompare(b.templateId),
   );
-  calendarSubscriptions.sort((a, b) => a.name.localeCompare(b.name, "sv"));
   schoolLunchFeeds.sort((a, b) =>
     a.schoolSlug.localeCompare(b.schoolSlug, "sv"),
   );
@@ -590,6 +590,25 @@ export async function loadAll(): Promise<{
       a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "sv"),
   );
   rewardAwards.sort((a, b) => a.date.localeCompare(b.date));
+
+  const recovered = recoverOrphanCalendarSubscriptions(
+    calendarSubscriptions,
+    events,
+  );
+  if (recovered.recoveredIds.length > 0) {
+    const tx = db.transaction("calendarSubscriptions", "readwrite");
+    await Promise.all([
+      ...recovered.subscriptions
+        .filter((subscription) =>
+          recovered.recoveredIds.includes(subscription.id),
+        )
+        .map((subscription) =>
+          tx.objectStore("calendarSubscriptions").put(subscription),
+        ),
+      tx.done,
+    ]);
+  }
+
   return {
     people,
     events,
@@ -606,7 +625,7 @@ export async function loadAll(): Promise<{
     routineProgress,
     recurringTemplates,
     recurringExceptions,
-    calendarSubscriptions,
+    calendarSubscriptions: recovered.subscriptions,
     schoolLunchFeeds,
     schoolLunchDays,
     rewardActivities,
