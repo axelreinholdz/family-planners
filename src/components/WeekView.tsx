@@ -179,6 +179,8 @@ export function WeekView() {
     ready,
     fillWeekFromTemplates,
     syncAllCalendarSubscriptions,
+    removeEvent,
+    removeRecurringTemplate,
   } = useFamilyStore();
   const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
   const [parentsExpanded, setParentsExpanded] = useState(false);
@@ -323,6 +325,16 @@ export function WeekView() {
           person={selectedPerson}
           subscription={selectedSubscription}
           onClose={() => setSelectedEventId(null)}
+          onRemoveOccurrence={
+            selectedEvent.calendarSubscriptionId
+              ? undefined
+              : () => removeEvent(selectedEvent.id)
+          }
+          onRemoveSeries={
+            selectedEvent.templateId
+              ? () => removeRecurringTemplate(selectedEvent.templateId!)
+              : undefined
+          }
         />
       ) : null}
     </div>

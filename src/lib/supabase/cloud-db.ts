@@ -6,6 +6,7 @@ import {
   eventsFromTemplates,
   eventsFromTemplatesForWeeks,
   reconcileTemplateEvents,
+  recurringExceptionId,
   weekAnchorsBetween,
 } from "@/lib/recurring";
 import { todayKey } from "@/lib/dates";
@@ -32,6 +33,7 @@ import type {
   NattningDayOverride,
   NattningSchedule,
   Person,
+  RecurringException,
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
@@ -77,8 +79,12 @@ async function requireMembership(): Promise<Membership> {
   return membership;
 }
 
-async function readPayload(): Promise<FamilyData> {
-  if (cachedPayload) return structuredClone(cachedPayload);
+async function readPayload(options?: { fresh?: boolean }): Promise<FamilyData> {
+  // Always re-fetch before mutations so a long-lived kitchen tab cannot
+  // overwrite newer fields (e.g. calendarSubscriptions) from another device.
+  if (!options?.fresh && cachedPayload) {
+    return structuredClone(cachedPayload);
+  }
   const membership = await requireMembership();
   const supabase = createClient();
   const payload = await loadFamilyPayload(supabase, membership.familyId);
@@ -103,6 +109,12 @@ function sortPayload(payload: FamilyData) {
   payload.recurringTemplates.sort((a, b) =>
     a.title.localeCompare(b.title, "sv"),
   );
+  payload.recurringExceptions = payload.recurringExceptions ?? [];
+  payload.recurringExceptions.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) || a.templateId.localeCompare(b.templateId),
+  );
+  payload.calendarSubscriptions = payload.calendarSubscriptions ?? [];
   payload.calendarSubscriptions.sort((a, b) =>
     a.name.localeCompare(b.name, "sv"),
   );
@@ -162,6 +174,7 @@ export async function cloudLoadAll(): Promise<FamilyData> {
       payload.events,
       weekAnchorsBetween(fromKey, toKey),
       newId,
+      payload.recurringExceptions ?? [],
     );
     if (created.length > 0) {
       payload.events.push(...created);
@@ -175,7 +188,7 @@ async function update(
   mutator: (data: FamilyData) => void | Promise<void>,
 ): Promise<void> {
   await enqueueWrite(async () => {
-    const data = await readPayload();
+    const data = await readPayload({ fresh: true });
     await mutator(data);
     await writePayload(data);
   });
@@ -200,8 +213,16 @@ export async function cloudDeletePerson(id: string) {
     data.routineProgress = data.routineProgress.filter(
       (p) => !routineIds.has(p.routineId),
     );
+    const removedTemplateIds = new Set(
+      data.recurringTemplates
+        .filter((t) => t.personId === id)
+        .map((t) => t.id),
+    );
     data.recurringTemplates = data.recurringTemplates.filter(
       (t) => t.personId !== id,
+    );
+    data.recurringExceptions = (data.recurringExceptions ?? []).filter(
+      (exception) => !removedTemplateIds.has(exception.templateId),
     );
     data.calendarSubscriptions = data.calendarSubscriptions.filter(
       (s) => s.personId !== id,
@@ -334,7 +355,7 @@ export async function cloudEnsureScreenTimeDay(
   date = todayKey(),
 ): Promise<ScreenTimeDay> {
   return enqueueWrite(async () => {
-    const data = await readPayload();
+    const data = await readPayload({ fresh: true });
     const id = screenTimeDayId(personId, date);
     const existing = data.screenTimeDays.find((d) => d.id === id);
     if (existing) return existing;
@@ -382,7 +403,7 @@ export async function cloudEnsureRoutineProgress(
   date = todayKey(),
 ): Promise<RoutineDayProgress> {
   return enqueueWrite(async () => {
-    const data = await readPayload();
+    const data = await readPayload({ fresh: true });
     const id = routineProgressId(routineId, date);
     const existing = data.routineProgress.find((p) => p.id === id);
     if (existing) return existing;
@@ -409,6 +430,50 @@ export async function cloudPutRecurringTemplate(template: RecurringTemplate) {
 export async function cloudDeleteRecurringTemplate(id: string) {
   await update((data) => {
     data.recurringTemplates = data.recurringTemplates.filter((t) => t.id !== id);
+    data.recurringExceptions = (data.recurringExceptions ?? []).filter(
+      (exception) => exception.templateId !== id,
+    );
+    data.events = data.events.filter((event) => event.templateId !== id);
+  });
+}
+
+export async function cloudPutRecurringException(
+  exception: RecurringException,
+) {
+  await update((data) => {
+    data.recurringExceptions = data.recurringExceptions ?? [];
+    const idx = data.recurringExceptions.findIndex(
+      (row) => row.id === exception.id,
+    );
+    if (idx >= 0) data.recurringExceptions[idx] = exception;
+    else data.recurringExceptions.push(exception);
+    data.events = data.events.filter(
+      (event) =>
+        !(
+          event.templateId === exception.templateId &&
+          event.date === exception.date
+        ),
+    );
+  });
+}
+
+export async function cloudDeleteRecurringException(id: string) {
+  await update((data) => {
+    data.recurringExceptions = (data.recurringExceptions ?? []).filter(
+      (exception) => exception.id !== id,
+    );
+  });
+}
+
+/** Skip one occurrence of a recurring template for a specific date. */
+export async function cloudSkipRecurringOccurrence(
+  templateId: string,
+  date: string,
+) {
+  await cloudPutRecurringException({
+    id: recurringExceptionId(templateId, date),
+    templateId,
+    date,
   });
 }
 
@@ -564,6 +629,7 @@ export async function cloudApplyTemplatesForWeek(weekAnchor = new Date()) {
       data.events,
       weekAnchor,
       newId,
+      data.recurringExceptions ?? [],
     );
     data.events.push(...created);
   });
@@ -593,6 +659,7 @@ export async function cloudApplyTemplateSpan(template: RecurringTemplate) {
       data.events,
       anchors,
       newId,
+      data.recurringExceptions ?? [],
     );
     data.events.push(...created);
   });
@@ -615,6 +682,7 @@ export async function cloudApplyAllTemplateSpans() {
       data.events,
       anchors,
       newId,
+      data.recurringExceptions ?? [],
     );
     data.events.push(...created);
   });

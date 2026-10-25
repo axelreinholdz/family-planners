@@ -276,7 +276,14 @@ export function ManageView({ onBack }: ManageViewProps) {
                       )}
                       <button
                         type="button"
-                        onClick={() => void removeEvent(event.id)}
+                        onClick={() => {
+                          const message = event.templateId
+                            ? `Ta bort “${event.title}” bara den här dagen? Övriga tillfällen behålls.`
+                            : `Ta bort “${event.title}”?`;
+                          if (window.confirm(message)) {
+                            void removeEvent(event.id);
+                          }
+                        }}
                         className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-red-700"
                       >
                         Ta bort

@@ -98,6 +98,14 @@ export interface RecurringTemplate {
   endDate?: string;
 }
 
+/** Skip one materialized occurrence of a recurring template. */
+export interface RecurringException {
+  /** Composite key: `${templateId}:${date}` */
+  id: string;
+  templateId: string;
+  date: string; // YYYY-MM-DD
+}
+
 export interface Todo {
   id: string;
   title: string;
@@ -246,6 +254,7 @@ export interface FamilyData {
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
+  recurringExceptions: RecurringException[];
   calendarSubscriptions: CalendarSubscription[];
   schoolLunchFeeds: SchoolLunchFeed[];
   schoolLunchDays: SchoolLunchDay[];

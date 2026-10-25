@@ -52,6 +52,7 @@ import {
   putTodo,
   resetToSeed,
   saveDinnerMenu,
+  skipRecurringOccurrence as dbSkipRecurringOccurrence,
 } from "@/lib/repository";
 import { todayKey } from "@/lib/dates";
 import {
@@ -96,6 +97,7 @@ import type {
   NattningSchedule,
   Person,
   PersonRole,
+  RecurringException,
   RecurringTemplate,
   RewardActivity,
   RewardAward,
@@ -121,6 +123,7 @@ interface FamilyStoreValue {
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
+  recurringExceptions: RecurringException[];
   calendarSubscriptions: CalendarSubscription[];
   schoolLunchFeeds: SchoolLunchFeed[];
   schoolLunchDays: SchoolLunchDay[];
@@ -191,6 +194,11 @@ interface FamilyStoreValue {
     input: Omit<RecurringTemplate, "id">,
   ) => Promise<void>;
   removeRecurringTemplate: (id: string) => Promise<void>;
+  /** Remove one occurrence of a recurring activity without deleting the series. */
+  skipRecurringOccurrence: (
+    templateId: string,
+    date: string,
+  ) => Promise<void>;
   fillWeekFromTemplates: (weekAnchor?: Date) => Promise<void>;
   fillAllRecurringTemplates: () => Promise<void>;
   saveCalendarSubscription: (
@@ -268,6 +276,9 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
   const [recurringTemplates, setRecurringTemplates] = useState<
     RecurringTemplate[]
   >([]);
+  const [recurringExceptions, setRecurringExceptions] = useState<
+    RecurringException[]
+  >([]);
   const [calendarSubscriptions, setCalendarSubscriptions] = useState<
     CalendarSubscription[]
   >([]);
@@ -305,6 +316,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       setRoutines(data.routines);
       setRoutineProgress(data.routineProgress);
       setRecurringTemplates(data.recurringTemplates);
+      setRecurringExceptions(data.recurringExceptions ?? []);
       setCalendarSubscriptions(data.calendarSubscriptions ?? []);
       setSchoolLunchFeeds(data.schoolLunchFeeds ?? []);
       setSchoolLunchDays(data.schoolLunchDays ?? []);
@@ -391,10 +403,15 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
 
   const removeEvent = useCallback(
     async (id: string) => {
-      await dbDeleteEvent(id);
+      const event = events.find((row) => row.id === id);
+      if (event?.templateId) {
+        await dbSkipRecurringOccurrence(event.templateId, event.date);
+      } else {
+        await dbDeleteEvent(id);
+      }
       await refresh();
     },
-    [refresh],
+    [events, refresh],
   );
 
   const createEvent = useCallback(
@@ -815,6 +832,14 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
     [refresh],
   );
 
+  const skipRecurringOccurrence = useCallback(
+    async (templateId: string, date: string) => {
+      await dbSkipRecurringOccurrence(templateId, date);
+      await refresh();
+    },
+    [refresh],
+  );
+
   const fillWeekFromTemplates = useCallback(
     async (weekAnchor = new Date()) => {
       await applyTemplatesForWeek(weekAnchor);
@@ -1161,6 +1186,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routines,
       routineProgress,
       recurringTemplates,
+      recurringExceptions,
       calendarSubscriptions,
       schoolLunchFeeds,
       schoolLunchDays,
@@ -1204,6 +1230,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       saveRecurringTemplate,
       createRecurringTemplate,
       removeRecurringTemplate,
+      skipRecurringOccurrence,
       fillWeekFromTemplates,
       fillAllRecurringTemplates,
       saveCalendarSubscription,
@@ -1239,6 +1266,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       routines,
       routineProgress,
       recurringTemplates,
+      recurringExceptions,
       calendarSubscriptions,
       schoolLunchFeeds,
       schoolLunchDays,
@@ -1282,6 +1310,7 @@ export function FamilyStoreProvider({ children }: { children: ReactNode }) {
       saveRecurringTemplate,
       createRecurringTemplate,
       removeRecurringTemplate,
+      skipRecurringOccurrence,
       fillWeekFromTemplates,
       fillAllRecurringTemplates,
       saveCalendarSubscription,
