@@ -412,7 +412,11 @@ export function ManageRecurring() {
                   <button
                     type="button"
                     onClick={() => {
-                      if (window.confirm("Ta bort mallen?")) {
+                      if (
+                        window.confirm(
+                          "Ta bort mallen? Alla skapade tillfällen raderas.",
+                        )
+                      ) {
                         void removeRecurringTemplate(template.id);
                       }
                     }}

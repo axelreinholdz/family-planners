@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import { dayLabel, parseDateKey } from "@/lib/dates";
@@ -45,6 +45,12 @@ interface ActivityDetailModalProps {
   person?: Person;
   subscription?: CalendarSubscription;
   onClose: () => void;
+  /** Remove a one-off activity, or one occurrence of a recurring series. */
+  onRemoveOccurrence?: () => Promise<void> | void;
+  /** Remove the whole recurring series (template + all linked activities). */
+  onRemoveSeries?: () => Promise<void> | void;
+  /** Remove the whole imported calendar subscription and its activities. */
+  onRemoveCalendar?: () => Promise<void> | void;
 }
 
 export function ActivityDetailModal({
@@ -52,9 +58,14 @@ export function ActivityDetailModal({
   person,
   subscription,
   onClose,
+  onRemoveOccurrence,
+  onRemoveSeries,
+  onRemoveCalendar,
 }: ActivityDetailModalProps) {
   const fromCalendar = Boolean(event.calendarSubscriptionId);
+  const isRecurring = Boolean(event.templateId);
   const isClient = useIsClient();
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const onKey = (keyboardEvent: KeyboardEvent) => {
@@ -65,6 +76,17 @@ export function ActivityDetailModal({
   }, [onClose]);
 
   if (!isClient) return null;
+
+  const runAction = async (action: () => Promise<void> | void) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action();
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
@@ -109,6 +131,10 @@ export function ActivityDetailModal({
               {fromCalendar ? (
                 <p className="mt-1 text-xs font-bold uppercase tracking-wider text-[var(--accent-deep)]">
                   Från kalender
+                </p>
+              ) : isRecurring ? (
+                <p className="mt-1 text-xs font-bold uppercase tracking-wider text-[var(--accent-deep)]">
+                  Återkommande
                 </p>
               ) : null}
             </div>
@@ -164,6 +190,13 @@ export function ActivityDetailModal({
               <DetailRow label="Kalender">{subscription.name}</DetailRow>
             ) : null}
 
+            {fromCalendar && !subscription ? (
+              <p className="text-sm font-semibold text-amber-800">
+                Kalenderprenumerationen saknas i Hantera. Du kan ta bort alla
+                aktiviteter från den här importen nedan.
+              </p>
+            ) : null}
+
             {fromCalendar &&
             !event.location &&
             !event.description &&
@@ -173,6 +206,84 @@ export function ActivityDetailModal({
               </p>
             ) : null}
           </div>
+
+          {fromCalendar && onRemoveCalendar ? (
+            <div className="mt-4 flex flex-col gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  const label = subscription?.name ?? "den importerade kalendern";
+                  if (
+                    window.confirm(
+                      `Ta bort ${label} och alla synkade aktiviteter?`,
+                    )
+                  ) {
+                    void runAction(onRemoveCalendar);
+                  }
+                }}
+                className="tap-target rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
+              >
+                Ta bort importerad kalender
+              </button>
+            </div>
+          ) : null}
+
+          {!fromCalendar && onRemoveOccurrence ? (
+            <div className="mt-4 flex flex-col gap-2">
+              {isRecurring ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Ta bort “${event.title}” bara den här dagen? Övriga tillfällen behålls.`,
+                        )
+                      ) {
+                        void runAction(onRemoveOccurrence);
+                      }
+                    }}
+                    className="tap-target rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
+                  >
+                    Ta bort bara denna dag
+                  </button>
+                  {onRemoveSeries ? (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Ta bort hela serien “${event.title}”? Alla tillfällen raderas.`,
+                          )
+                        ) {
+                          void runAction(onRemoveSeries);
+                        }
+                      }}
+                      className="tap-target rounded-xl px-4 py-3 text-sm font-bold text-red-800 disabled:opacity-40"
+                    >
+                      Ta bort hela serien
+                    </button>
+                  ) : null}
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (window.confirm(`Ta bort “${event.title}”?`)) {
+                      void runAction(onRemoveOccurrence);
+                    }
+                  }}
+                  className="tap-target rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-700 ring-1 ring-red-200 disabled:opacity-40"
+                >
+                  Ta bort
+                </button>
+              )}
+            </div>
+          ) : null}
         </div>
       </div>
     </div>,

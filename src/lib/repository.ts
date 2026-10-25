@@ -12,6 +12,7 @@ import type {
   FamilyData,
   IdagWidgetPlacement,
   Person,
+  RecurringException,
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
@@ -146,6 +147,26 @@ export async function putRecurringTemplate(template: RecurringTemplate) {
 export async function deleteRecurringTemplate(id: string) {
   if (cloudMode) return cloud.cloudDeleteRecurringTemplate(id);
   return local.deleteRecurringTemplate(id);
+}
+
+export async function putRecurringException(exception: RecurringException) {
+  if (cloudMode) return cloud.cloudPutRecurringException(exception);
+  return local.putRecurringException(exception);
+}
+
+export async function deleteRecurringException(id: string) {
+  if (cloudMode) return cloud.cloudDeleteRecurringException(id);
+  return local.deleteRecurringException(id);
+}
+
+export async function skipRecurringOccurrence(
+  templateId: string,
+  date: string,
+) {
+  if (cloudMode) {
+    return cloud.cloudSkipRecurringOccurrence(templateId, date);
+  }
+  return local.skipRecurringOccurrence(templateId, date);
 }
 
 export async function putCalendarSubscription(

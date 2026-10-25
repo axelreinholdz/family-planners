@@ -1,10 +1,12 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import { todayKey } from "./dates";
+import { recoverOrphanCalendarSubscriptions } from "./calendarSync";
 import {
   applySpanForTemplate,
   eventsFromTemplates,
   eventsFromTemplatesForWeeks,
   reconcileTemplateEvents,
+  recurringExceptionId,
   weekAnchorsBetween,
 } from "./recurring";
 import { normalizeIdagLayouts, setIdagLayoutForPerson } from "./idagLayout";
@@ -36,6 +38,7 @@ import type {
   NattningDayOverride,
   NattningSchedule,
   Person,
+  RecurringException,
   RecurringTemplate,
   Routine,
   RoutineDayProgress,
@@ -102,6 +105,10 @@ interface FamilyPlannerDB extends DBSchema {
     key: string;
     value: RecurringTemplate;
   };
+  recurringExceptions: {
+    key: string;
+    value: RecurringException;
+  };
   calendarSubscriptions: {
     key: string;
     value: CalendarSubscription;
@@ -125,7 +132,7 @@ interface FamilyPlannerDB extends DBSchema {
 }
 
 const DB_NAME = "family-planners";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 let dbPromise: Promise<IDBPDatabase<FamilyPlannerDB>> | null = null;
 
@@ -193,6 +200,11 @@ function getDb() {
           }
           if (!db.objectStoreNames.contains("nattningDayOverrides")) {
             db.createObjectStore("nattningDayOverrides", { keyPath: "id" });
+          }
+        }
+        if (oldVersion < 8) {
+          if (!db.objectStoreNames.contains("recurringExceptions")) {
+            db.createObjectStore("recurringExceptions", { keyPath: "id" });
           }
         }
       },
@@ -305,15 +317,17 @@ async function persistCreatedEvents(created: Event[]) {
 
 export async function applyTemplatesForWeek(weekAnchor = new Date()) {
   const db = await getDb();
-  const [templates, events] = await Promise.all([
+  const [templates, events, exceptions] = await Promise.all([
     db.getAll("recurringTemplates"),
     db.getAll("events"),
+    db.getAll("recurringExceptions"),
   ]);
   const created = eventsFromTemplates(
     templates,
     events,
     weekAnchor,
     newId,
+    exceptions,
   );
   await persistCreatedEvents(created);
 }
@@ -323,15 +337,17 @@ export async function applyTemplatesBetween(fromKey: string, toKey: string) {
   const anchors = weekAnchorsBetween(fromKey, toKey);
   if (anchors.length === 0) return;
   const db = await getDb();
-  const [templates, events] = await Promise.all([
+  const [templates, events, exceptions] = await Promise.all([
     db.getAll("recurringTemplates"),
     db.getAll("events"),
+    db.getAll("recurringExceptions"),
   ]);
   const created = eventsFromTemplatesForWeeks(
     templates,
     events,
     anchors,
     newId,
+    exceptions,
   );
   await persistCreatedEvents(created);
 }
@@ -339,7 +355,10 @@ export async function applyTemplatesBetween(fromKey: string, toKey: string) {
 /** Sync linked events from a template, then materialize missing dates in span. */
 export async function applyTemplateSpan(template: RecurringTemplate) {
   const db = await getDb();
-  const events = await db.getAll("events");
+  const [events, exceptions] = await Promise.all([
+    db.getAll("events"),
+    db.getAll("recurringExceptions"),
+  ]);
   const { updated, deleteIds } = reconcileTemplateEvents(template, events);
 
   if (updated.length > 0 || deleteIds.length > 0) {
@@ -364,6 +383,7 @@ export async function applyTemplateSpan(template: RecurringTemplate) {
     remaining,
     anchors,
     newId,
+    exceptions,
   );
   await persistCreatedEvents(created);
 }
@@ -371,9 +391,10 @@ export async function applyTemplateSpan(template: RecurringTemplate) {
 /** Materialize all enabled templates across their apply spans (incl. upcoming). */
 export async function applyAllTemplateSpans() {
   const db = await getDb();
-  const [templates, events] = await Promise.all([
+  const [templates, events, exceptions] = await Promise.all([
     db.getAll("recurringTemplates"),
     db.getAll("events"),
+    db.getAll("recurringExceptions"),
   ]);
   const enabled = templates.filter((template) => template.enabled);
   if (enabled.length === 0) return;
@@ -393,6 +414,7 @@ export async function applyAllTemplateSpans() {
     events,
     anchors,
     newId,
+    exceptions,
   );
   await persistCreatedEvents(created);
 }
@@ -415,6 +437,7 @@ async function ensureSeeded() {
         "routines",
         "routineProgress",
         "recurringTemplates",
+        "recurringExceptions",
         "calendarSubscriptions",
       ],
       "readwrite",
@@ -494,6 +517,7 @@ export async function loadAll(): Promise<{
   routines: Routine[];
   routineProgress: RoutineDayProgress[];
   recurringTemplates: RecurringTemplate[];
+  recurringExceptions: RecurringException[];
   calendarSubscriptions: CalendarSubscription[];
   schoolLunchFeeds: SchoolLunchFeed[];
   schoolLunchDays: SchoolLunchDay[];
@@ -517,6 +541,7 @@ export async function loadAll(): Promise<{
     routines,
     routineProgress,
     recurringTemplates,
+    recurringExceptions,
     calendarSubscriptions,
     schoolLunchFeeds,
     schoolLunchDays,
@@ -537,6 +562,7 @@ export async function loadAll(): Promise<{
     db.getAll("routines"),
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
+    db.getAll("recurringExceptions"),
     db.getAll("calendarSubscriptions"),
     db.getAll("schoolLunchFeeds"),
     db.getAll("schoolLunchDays"),
@@ -551,7 +577,10 @@ export async function loadAll(): Promise<{
   dinners.sort((a, b) => a.weekday - b.weekday);
   routines.sort(compareRoutines);
   recurringTemplates.sort((a, b) => a.title.localeCompare(b.title, "sv"));
-  calendarSubscriptions.sort((a, b) => a.name.localeCompare(b.name, "sv"));
+  recurringExceptions.sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) || a.templateId.localeCompare(b.templateId),
+  );
   schoolLunchFeeds.sort((a, b) =>
     a.schoolSlug.localeCompare(b.schoolSlug, "sv"),
   );
@@ -561,6 +590,25 @@ export async function loadAll(): Promise<{
       a.sortOrder - b.sortOrder || a.title.localeCompare(b.title, "sv"),
   );
   rewardAwards.sort((a, b) => a.date.localeCompare(b.date));
+
+  const recovered = recoverOrphanCalendarSubscriptions(
+    calendarSubscriptions,
+    events,
+  );
+  if (recovered.recoveredIds.length > 0) {
+    const tx = db.transaction("calendarSubscriptions", "readwrite");
+    await Promise.all([
+      ...recovered.subscriptions
+        .filter((subscription) =>
+          recovered.recoveredIds.includes(subscription.id),
+        )
+        .map((subscription) =>
+          tx.objectStore("calendarSubscriptions").put(subscription),
+        ),
+      tx.done,
+    ]);
+  }
+
   return {
     people,
     events,
@@ -576,7 +624,8 @@ export async function loadAll(): Promise<{
     routines: routines.map(normalizeRoutine),
     routineProgress,
     recurringTemplates,
-    calendarSubscriptions,
+    recurringExceptions,
+    calendarSubscriptions: recovered.subscriptions,
     schoolLunchFeeds,
     schoolLunchDays,
     rewardActivities,
@@ -599,6 +648,7 @@ export async function deletePerson(id: string) {
     routines,
     progress,
     templates,
+    exceptions,
     subscriptions,
     lunchFeeds,
     lunchDays,
@@ -613,6 +663,7 @@ export async function deletePerson(id: string) {
     db.getAll("routines"),
     db.getAll("routineProgress"),
     db.getAll("recurringTemplates"),
+    db.getAll("recurringExceptions"),
     db.getAll("calendarSubscriptions"),
     db.getAll("schoolLunchFeeds"),
     db.getAll("schoolLunchDays"),
@@ -630,6 +681,9 @@ export async function deletePerson(id: string) {
   const rewardIds = new Set(
     rewardActivities.filter((row) => row.personId === id).map((row) => row.id),
   );
+  const removedTemplateIds = new Set(
+    templates.filter((row) => row.personId === id).map((row) => row.id),
+  );
 
   const tx = db.transaction(
     [
@@ -638,6 +692,7 @@ export async function deletePerson(id: string) {
       "routines",
       "routineProgress",
       "recurringTemplates",
+      "recurringExceptions",
       "calendarSubscriptions",
       "schoolLunchFeeds",
       "schoolLunchDays",
@@ -665,6 +720,9 @@ export async function deletePerson(id: string) {
     ...templates
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("recurringTemplates").delete(row.id)),
+    ...exceptions
+      .filter((row) => removedTemplateIds.has(row.templateId))
+      .map((row) => tx.objectStore("recurringExceptions").delete(row.id)),
     ...subscriptions
       .filter((row) => row.personId === id)
       .map((row) => tx.objectStore("calendarSubscriptions").delete(row.id)),
@@ -844,7 +902,58 @@ export async function putRecurringTemplate(template: RecurringTemplate) {
 
 export async function deleteRecurringTemplate(id: string) {
   const db = await getDb();
-  await db.delete("recurringTemplates", id);
+  const [events, exceptions] = await Promise.all([
+    db.getAll("events"),
+    db.getAll("recurringExceptions"),
+  ]);
+  const tx = db.transaction(
+    ["recurringTemplates", "recurringExceptions", "events"],
+    "readwrite",
+  );
+  await tx.objectStore("recurringTemplates").delete(id);
+  await Promise.all([
+    ...exceptions
+      .filter((row) => row.templateId === id)
+      .map((row) => tx.objectStore("recurringExceptions").delete(row.id)),
+    ...events
+      .filter((row) => row.templateId === id)
+      .map((row) => tx.objectStore("events").delete(row.id)),
+    tx.done,
+  ]);
+}
+
+export async function putRecurringException(exception: RecurringException) {
+  const db = await getDb();
+  const events = await db.getAll("events");
+  const tx = db.transaction(["recurringExceptions", "events"], "readwrite");
+  await tx.objectStore("recurringExceptions").put(exception);
+  await Promise.all([
+    ...events
+      .filter(
+        (row) =>
+          row.templateId === exception.templateId &&
+          row.date === exception.date,
+      )
+      .map((row) => tx.objectStore("events").delete(row.id)),
+    tx.done,
+  ]);
+}
+
+export async function deleteRecurringException(id: string) {
+  const db = await getDb();
+  await db.delete("recurringExceptions", id);
+}
+
+/** Skip one occurrence of a recurring template for a specific date. */
+export async function skipRecurringOccurrence(
+  templateId: string,
+  date: string,
+) {
+  await putRecurringException({
+    id: recurringExceptionId(templateId, date),
+    templateId,
+    date,
+  });
 }
 
 export async function putCalendarSubscription(
@@ -1005,6 +1114,7 @@ export async function resetToSeed() {
       "routines",
       "routineProgress",
       "recurringTemplates",
+      "recurringExceptions",
       "calendarSubscriptions",
       "schoolLunchFeeds",
       "schoolLunchDays",
@@ -1025,6 +1135,7 @@ export async function resetToSeed() {
     tx.objectStore("routines").clear(),
     tx.objectStore("routineProgress").clear(),
     tx.objectStore("recurringTemplates").clear(),
+    tx.objectStore("recurringExceptions").clear(),
     tx.objectStore("calendarSubscriptions").clear(),
     tx.objectStore("schoolLunchFeeds").clear(),
     tx.objectStore("schoolLunchDays").clear(),

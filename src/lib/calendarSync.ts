@@ -1,5 +1,57 @@
 import type { ParsedCalendarInstance } from "@/lib/calendarIcs";
+import { addDays, toDateKey, todayKey } from "@/lib/dates";
 import type { CalendarSubscription, Event } from "@/lib/types";
+
+/**
+ * Rebuild missing subscription rows from events that still carry a
+ * `calendarSubscriptionId`. Stale cloud overwrites can drop the subscription
+ * list while leaving synced events behind — without this, Kalendrar looks empty
+ * even though imported activities remain on the week grid.
+ */
+export function recoverOrphanCalendarSubscriptions(
+  subscriptions: CalendarSubscription[],
+  events: Event[],
+  today = todayKey(),
+): { subscriptions: CalendarSubscription[]; recoveredIds: string[] } {
+  const known = new Set(subscriptions.map((subscription) => subscription.id));
+  const orphanEvents = new Map<string, Event[]>();
+
+  for (const event of events) {
+    const subscriptionId = event.calendarSubscriptionId;
+    if (!subscriptionId || known.has(subscriptionId)) continue;
+    const group = orphanEvents.get(subscriptionId) ?? [];
+    group.push(event);
+    orphanEvents.set(subscriptionId, group);
+  }
+
+  if (orphanEvents.size === 0) {
+    return { subscriptions, recoveredIds: [] };
+  }
+
+  const recoveredIds: string[] = [];
+  const next = [...subscriptions];
+  for (const [id, group] of orphanEvents) {
+    recoveredIds.push(id);
+    const sample = group[0];
+    const dates = group.map((event) => event.date).sort();
+    next.push({
+      id,
+      personId: sample.personId,
+      name: "Importerad kalender",
+      url: "",
+      iconKey: sample.iconKey || "preschool",
+      emoji: sample.emoji,
+      enabled: false,
+      startDate: dates[0] ?? today,
+      endDate: dates[dates.length - 1] ?? toDateKey(addDays(new Date(), 90)),
+      lastError:
+        "Prenumerationen saknades. Klistra in ICS-URL under Ändra, eller ta bort kalendern.",
+    });
+  }
+
+  next.sort((a, b) => a.name.localeCompare(b.name, "sv"));
+  return { subscriptions: next, recoveredIds };
+}
 
 export type CalendarFetchResponse = {
   events?: ParsedCalendarInstance[];

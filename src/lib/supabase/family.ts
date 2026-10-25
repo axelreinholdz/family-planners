@@ -37,6 +37,7 @@ export function emptyFamilyData(): FamilyData {
     routines: [],
     routineProgress: [],
     recurringTemplates: [],
+    recurringExceptions: [],
     calendarSubscriptions: [],
     schoolLunchFeeds: [],
     schoolLunchDays: [],
@@ -86,6 +87,7 @@ export function buildSeedFamilyData(): FamilyData {
     })),
     routineProgress: [],
     recurringTemplates,
+    recurringExceptions: [],
     calendarSubscriptions: [],
     schoolLunchFeeds: [],
     schoolLunchDays: [],
@@ -283,6 +285,8 @@ function normalizeFamilyData(partial: Partial<FamilyData>): FamilyData {
     routines: (partial.routines ?? base.routines).map(normalizeRoutine),
     routineProgress: partial.routineProgress ?? base.routineProgress,
     recurringTemplates: partial.recurringTemplates ?? base.recurringTemplates,
+    recurringExceptions:
+      partial.recurringExceptions ?? base.recurringExceptions,
     calendarSubscriptions:
       partial.calendarSubscriptions ?? base.calendarSubscriptions,
     schoolLunchFeeds: partial.schoolLunchFeeds ?? base.schoolLunchFeeds,

@@ -6,7 +6,23 @@ import {
   toDateKey,
   todayKey,
 } from "./dates";
-import type { Event, RecurringTemplate } from "./types";
+import type { Event, RecurringException, RecurringTemplate } from "./types";
+
+/** Composite id for a skipped template occurrence. */
+export function recurringExceptionId(templateId: string, date: string): string {
+  return `${templateId}:${date}`;
+}
+
+function isSkippedOccurrence(
+  templateId: string,
+  date: string,
+  exceptions: Pick<RecurringException, "templateId" | "date">[],
+): boolean {
+  return exceptions.some(
+    (exception) =>
+      exception.templateId === templateId && exception.date === date,
+  );
+}
 
 /** Cap how far ahead open-ended templates are materialized at once. */
 const MAX_APPLY_WEEKS = 52;
@@ -94,6 +110,7 @@ export function eventsFromTemplates(
   existing: Event[],
   weekAnchor = new Date(),
   newId: (prefix: string) => string,
+  exceptions: Pick<RecurringException, "templateId" | "date">[] = [],
 ): Event[] {
   const weekStart = startOfWeek(weekAnchor);
   const created: Event[] = [];
@@ -104,6 +121,7 @@ export function eventsFromTemplates(
     for (const weekday of template.weekdays) {
       const date = toDateKey(addDays(weekStart, weekday));
       if (!isWithinTemplateRange(date, template)) continue;
+      if (isSkippedOccurrence(template.id, date, exceptions)) continue;
       const already = existing.some(
         (event) =>
           event.templateId === template.id && event.date === date,
@@ -177,11 +195,18 @@ export function eventsFromTemplatesForWeeks(
   existing: Event[],
   weekAnchors: Date[],
   newId: (prefix: string) => string,
+  exceptions: Pick<RecurringException, "templateId" | "date">[] = [],
 ): Event[] {
   const created: Event[] = [];
   const known = [...existing];
   for (const anchor of weekAnchors) {
-    const batch = eventsFromTemplates(templates, known, anchor, newId);
+    const batch = eventsFromTemplates(
+      templates,
+      known,
+      anchor,
+      newId,
+      exceptions,
+    );
     created.push(...batch);
     known.push(...batch);
   }

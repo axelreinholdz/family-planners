@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { IconPicker } from "@/components/IconPicker";
 import { ManageModal } from "@/components/ManageModal";
-import { defaultChildId, PersonTabs } from "@/components/PersonTabs";
+import { defaultChildId } from "@/components/PersonTabs";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import { addDays, toDateKey, todayKey } from "@/lib/dates";
 import { getIconEmoji, resolveActivityEmoji } from "@/lib/icons";
@@ -54,6 +54,9 @@ function fieldsFromSubscription(
 
 function formatSyncMeta(subscription: CalendarSubscription): string {
   const range = `${subscription.startDate} – ${subscription.endDate}`;
+  if (!subscription.url.trim()) {
+    return `${range} · saknar ICS-URL`;
+  }
   if (subscription.lastError) return `${range} · fel`;
   if (subscription.lastSyncedAt) {
     const when = new Date(subscription.lastSyncedAt);
@@ -66,6 +69,15 @@ function formatSyncMeta(subscription: CalendarSubscription): string {
     return `${range} · ${label}`;
   }
   return `${range} · inte synkad`;
+}
+
+function eventCountForSubscription(
+  subscriptionId: string,
+  events: { calendarSubscriptionId?: string }[],
+): number {
+  return events.filter(
+    (event) => event.calendarSubscriptionId === subscriptionId,
+  ).length;
 }
 
 function CalendarFormFields({
@@ -174,9 +186,12 @@ function isValidFields(fields: CalendarFields): boolean {
   }
 }
 
+const ALL_CHILDREN = "__all__";
+
 export function ManageCalendars() {
   const {
     people,
+    events,
     calendarSubscriptions,
     createCalendarSubscription,
     saveCalendarSubscription,
@@ -186,9 +201,7 @@ export function ManageCalendars() {
   } = useFamilyStore();
 
   const children = people.filter((p) => p.role === "child");
-  const [filterPersonId, setFilterPersonId] = useState(() =>
-    defaultChildId(people),
-  );
+  const [filterPersonId, setFilterPersonId] = useState(ALL_CHILDREN);
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
@@ -196,18 +209,25 @@ export function ManageCalendars() {
     defaultFields(people),
   );
 
-  const activeFilterId = defaultChildId(people, filterPersonId);
-  const filtered = calendarSubscriptions.filter(
-    (subscription) => subscription.personId === activeFilterId,
-  );
-  const filterPerson = children.find((p) => p.id === activeFilterId);
+  const activeChildId =
+    filterPersonId === ALL_CHILDREN
+      ? defaultChildId(people)
+      : defaultChildId(people, filterPersonId);
+  const filtered =
+    filterPersonId === ALL_CHILDREN
+      ? calendarSubscriptions
+      : calendarSubscriptions.filter(
+          (subscription) => subscription.personId === filterPersonId,
+        );
+  const filterPerson = children.find((p) => p.id === filterPersonId);
+  const personById = new Map(people.map((person) => [person.id, person]));
 
   useEffect(() => {
     void syncAllCalendarSubscriptions();
   }, [syncAllCalendarSubscriptions]);
 
   const resetCreate = () => {
-    setCreateFields(defaultFields(people, activeFilterId));
+    setCreateFields(defaultFields(people, activeChildId));
   };
 
   const closeCreate = () => {
@@ -266,16 +286,73 @@ export function ManageCalendars() {
         </button>
       </div>
 
-      <PersonTabs
-        people={people}
-        selectedId={activeFilterId}
-        roles={["child"]}
-        label="Välj barn"
-        onSelect={(id) => {
-          setFilterPersonId(id);
-          setEditingId(null);
-        }}
-      />
+      {children.length > 0 ? (
+        <div
+          className="flex flex-wrap gap-2 rounded-2xl bg-white/70 p-1 shadow-sm ring-1 ring-black/5"
+          role="tablist"
+          aria-label="Filtrera kalendrar"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={filterPersonId === ALL_CHILDREN}
+            onClick={() => {
+              setFilterPersonId(ALL_CHILDREN);
+              setEditingId(null);
+            }}
+            className={`tap-target rounded-xl px-4 py-2 text-sm font-bold transition ${
+              filterPersonId === ALL_CHILDREN
+                ? "bg-[var(--accent)] text-white"
+                : "text-[var(--ink-muted)]"
+            }`}
+          >
+            Alla
+            {calendarSubscriptions.length > 0
+              ? ` (${calendarSubscriptions.length})`
+              : ""}
+          </button>
+          {children
+            .slice()
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map((person) => {
+              const active = filterPersonId === person.id;
+              const count = calendarSubscriptions.filter(
+                (subscription) => subscription.personId === person.id,
+              ).length;
+              return (
+                <button
+                  key={person.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => {
+                    setFilterPersonId(person.id);
+                    setEditingId(null);
+                  }}
+                  className={`tap-target flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-bold transition ${
+                    active
+                      ? "bg-[var(--accent)] text-white"
+                      : "text-[var(--ink-muted)]"
+                  }`}
+                >
+                  <span
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-lg"
+                    style={{
+                      backgroundColor: active
+                        ? "#ffffff33"
+                        : `${person.color}33`,
+                    }}
+                    aria-hidden
+                  >
+                    {person.avatar}
+                  </span>
+                  {person.name}
+                  {count > 0 ? ` (${count})` : ""}
+                </button>
+              );
+            })}
+        </div>
+      ) : null}
 
       {children.length === 0 ? (
         <div className="rounded-3xl bg-white/80 px-4 py-8 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
@@ -283,17 +360,33 @@ export function ManageCalendars() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-3xl bg-white/80 px-4 py-8 text-center text-sm text-[var(--ink-muted)] ring-1 ring-black/5">
-          Inga kalendrar för {filterPerson?.name ?? "detta barn"} ännu.
+          {filterPersonId === ALL_CHILDREN
+            ? "Inga importerade kalendrar ännu."
+            : `Inga kalendrar för ${filterPerson?.name ?? "detta barn"} ännu.`}
         </div>
       ) : (
         <ul className="flex flex-col gap-2">
           {filtered.map((subscription) => {
             const isEditing = editingId === subscription.id;
+            const owner = personById.get(subscription.personId);
+            const linkedCount = eventCountForSubscription(
+              subscription.id,
+              events,
+            );
+            const needsUrl = !subscription.url.trim();
             return (
               <CalendarRow
                 key={subscription.id}
                 people={people}
                 subscription={subscription}
+                ownerLabel={
+                  owner
+                    ? `${owner.avatar} ${owner.name}`
+                    : "Okänt barn"
+                }
+                showOwner={filterPersonId === ALL_CHILDREN || !owner}
+                linkedCount={linkedCount}
+                needsUrl={needsUrl}
                 isEditing={isEditing}
                 syncing={syncingId === subscription.id}
                 onToggleEdit={() =>
@@ -333,9 +426,10 @@ export function ManageCalendars() {
                       fields.emoji ||
                       getIconEmoji(fields.iconKey) ||
                       undefined,
-                    enabled: fields.enabled,
+                    enabled: true,
                     startDate: fields.startDate,
                     endDate: fields.endDate,
+                    lastError: undefined,
                   }).then(() => {
                     setEditingId(null);
                     void runSync(subscription.id);
@@ -379,6 +473,10 @@ export function ManageCalendars() {
 function CalendarRow({
   people,
   subscription,
+  ownerLabel,
+  showOwner,
+  linkedCount,
+  needsUrl,
   isEditing,
   syncing,
   onToggleEdit,
@@ -389,6 +487,10 @@ function CalendarRow({
 }: {
   people: Person[];
   subscription: CalendarSubscription;
+  ownerLabel: string;
+  showOwner: boolean;
+  linkedCount: number;
+  needsUrl: boolean;
   isEditing: boolean;
   syncing: boolean;
   onToggleEdit: () => void;
@@ -412,19 +514,30 @@ function CalendarRow({
               </span>
             ) : null}
           </p>
+          {showOwner ? (
+            <p className="truncate text-sm font-semibold text-[var(--ink-muted)]">
+              {ownerLabel}
+            </p>
+          ) : null}
           <p className="truncate text-sm text-[var(--ink-muted)]">
             {formatSyncMeta(subscription)}
+            {linkedCount > 0 ? ` · ${linkedCount} aktiviteter` : ""}
           </p>
           {subscription.lastError ? (
-            <p className="truncate text-sm font-semibold text-red-700">
+            <p className="text-sm font-semibold text-red-700">
               {subscription.lastError}
+            </p>
+          ) : null}
+          {needsUrl ? (
+            <p className="text-sm font-semibold text-amber-800">
+              Öppna Ändra och klistra in ICS-URL, eller ta bort kalendern.
             </p>
           ) : null}
         </div>
         <button
           type="button"
           onClick={onSync}
-          disabled={syncing || !subscription.enabled}
+          disabled={syncing || !subscription.enabled || needsUrl}
           className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--accent-deep)] disabled:opacity-40"
         >
           {syncing ? "Synkar…" : "Uppdatera"}
@@ -432,7 +545,8 @@ function CalendarRow({
         <button
           type="button"
           onClick={onToggleEnabled}
-          className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--ink-muted)]"
+          disabled={needsUrl}
+          className="tap-target rounded-full px-3 py-1.5 text-sm font-bold text-[var(--ink-muted)] disabled:opacity-40"
         >
           {subscription.enabled ? "Pausa" : "Aktivera"}
         </button>
