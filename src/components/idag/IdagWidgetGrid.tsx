@@ -35,7 +35,7 @@ import {
   IDAG_WIDGET_SIZE_LABELS,
   addWidgetToLayout,
   allowedSizesForWidget,
-  availablePhase1Types,
+  availableOptionalTypes,
   canPlaceAt,
   catalogEntryFor,
   idagGridRowCount,
@@ -405,7 +405,7 @@ function WidgetPreview({
         compact ? "p-2.5" : "p-4"
       }`}
       style={{
-        width: `min(${(footprint.cols / IDAG_GRID_COLUMNS) * 100}vw, 28rem)`,
+        width: `min(${(footprint.cols / IDAG_GRID_COLUMNS) * 100}%, 20rem)`,
       }}
     >
       <WidgetBody
@@ -457,7 +457,7 @@ export function IdagWidgetGrid({
     return units;
   }, [displayLayout, routines, child?.id]);
 
-  const available = useMemo(() => availablePhase1Types(layout), [layout]);
+  const available = useMemo(() => availableOptionalTypes(layout), [layout]);
   const rowCount = useMemo(
     () =>
       idagGridRowCount(displayLayout, {
@@ -560,15 +560,17 @@ export function IdagWidgetGrid({
   const showBoard = editing || displayLayout.length > 0;
 
   return (
-    <div className={`flex flex-col gap-3 ${editing ? "" : "min-h-0"}`}>
+    <div
+      className={`flex h-full min-h-0 flex-col gap-2 ${editing ? "" : "min-h-0"}`}
+    >
       {editing && available.length > 0 ? (
-        <div className="flex justify-end">
+        <div className="flex shrink-0 justify-end">
           <button
             type="button"
             onClick={() => setAddOpen(true)}
-            className="tap-target rounded-2xl bg-[var(--accent)] px-4 py-2.5 text-sm font-bold text-white"
+            className="tap-target rounded-2xl bg-[var(--accent)] px-3 py-2 text-sm font-bold text-white"
           >
-            Lägg till widget
+            Lägg till
           </button>
         </div>
       ) : null}
@@ -587,17 +589,13 @@ export function IdagWidgetGrid({
           onDragCancel={handleDragCancel}
         >
           <div
-            className="grid w-full gap-3 p-0.5"
+            className="grid min-h-0 w-full flex-1 gap-2.5 overflow-y-auto p-0.5"
             style={{
               gridTemplateColumns: `repeat(${IDAG_GRID_COLUMNS}, minmax(0, 1fr))`,
-              // Equal row fracs + board aspect ⇒ square cells for every size (S–XL).
+              gridAutoRows: "minmax(4.5rem, 1fr)",
               gridTemplateRows:
                 rowCount > 0
-                  ? `repeat(${rowCount}, minmax(0, 1fr))`
-                  : undefined,
-              aspectRatio:
-                rowCount > 0
-                  ? `${IDAG_GRID_COLUMNS} / ${rowCount}`
+                  ? `repeat(${rowCount}, minmax(4.5rem, 1fr))`
                   : undefined,
             }}
           >

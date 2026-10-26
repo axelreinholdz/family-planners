@@ -25,10 +25,38 @@ export type IdagWidgetCatalogEntry = {
   phase: 1 | 2;
 };
 
-/** 8-column home-screen style snap grid. */
-export const IDAG_GRID_COLUMNS = 8;
-/** Always show at least this many rows so empty space is usable. */
-export const IDAG_GRID_MIN_ROWS = 8;
+/**
+ * Side Ordna column width (Direction A).
+ * Tidslinje + Rutiner are fixed outside this grid.
+ */
+export const IDAG_SIDE_GRID_COLUMNS = 4;
+/** @deprecated Use IDAG_SIDE_GRID_COLUMNS — kept as alias for packing helpers. */
+export const IDAG_GRID_COLUMNS = IDAG_SIDE_GRID_COLUMNS;
+/** Always show at least this many rows so empty space is usable in Ordna. */
+export const IDAG_GRID_MIN_ROWS = 4;
+
+/** Always rendered outside the side Ordna grid. */
+export const FIXED_IDAG_WIDGET_TYPES: IdagWidgetType[] = [
+  "nextEvents",
+  "routines",
+];
+
+/** Phase-1 widgets that can be added/removed in the side Ordna grid. */
+export const OPTIONAL_IDAG_WIDGET_TYPES: IdagWidgetType[] = [
+  "screenTime",
+  "dinner",
+  "schoolLunch",
+  "rewards",
+  "nattning",
+];
+
+export function isFixedIdagWidgetType(type: IdagWidgetType): boolean {
+  return (FIXED_IDAG_WIDGET_TYPES as string[]).includes(type);
+}
+
+export function isOptionalIdagWidgetType(type: IdagWidgetType): boolean {
+  return (OPTIONAL_IDAG_WIDGET_TYPES as string[]).includes(type);
+}
 
 export const IDAG_WIDGET_SIZES: IdagWidgetSize[] = ["S", "M", "L", "XL"];
 
@@ -140,7 +168,9 @@ export function idagWidgetFootprint(
     return { cols: 2, rows: 1 };
   }
   if (ctx?.type === "routines") {
-    if (orientation === "horizontal") return { cols: 8, rows: 2 };
+    if (orientation === "horizontal") {
+      return { cols: IDAG_SIDE_GRID_COLUMNS, rows: 2 };
+    }
     const units = Math.max(1, ctx.contentUnits ?? 3);
     // Placement footprint ≈ content; card itself hugs steps (see IdagWidgetGrid).
     return { cols: 2, rows: Math.min(14, Math.max(2, units)) };
@@ -152,11 +182,11 @@ export function idagWidgetFootprint(
     case "M":
       return { cols: 2, rows: 2 };
     case "L":
-      return { cols: 4, rows: 4 };
+      return { cols: IDAG_SIDE_GRID_COLUMNS, rows: 4 };
     case "XL":
       return orientation === "vertical"
         ? { cols: 2, rows: 6 }
-        : { cols: 8, rows: 2 };
+        : { cols: IDAG_SIDE_GRID_COLUMNS, rows: 2 };
   }
 }
 
@@ -669,8 +699,16 @@ export const PHASE1_WIDGET_TYPES: IdagWidgetType[] = [
   "nattning",
 ];
 
-/** Default layout with explicit snap positions (gaps allowed). */
+/**
+ * Default side Ordna widgets (Direction A).
+ * Tidslinje + Rutiner are fixed outside this list.
+ */
 export function defaultIdagLayout(): IdagWidgetPlacement[] {
+  return defaultOptionalIdagLayout();
+}
+
+/** @see defaultIdagLayout */
+export function defaultOptionalIdagLayout(): IdagWidgetPlacement[] {
   return [
     {
       id: "w-screenTime",
@@ -689,21 +727,12 @@ export function defaultIdagLayout(): IdagWidgetPlacement[] {
       sortOrder: 1,
     },
     {
-      id: "w-nextEvents",
-      type: "nextEvents",
-      size: "M",
-      col: 5,
-      row: 0,
-      sortOrder: 2,
-    },
-    {
-      id: "w-routines",
-      type: "routines",
-      size: "XL",
-      orientation: "horizontal",
+      id: "w-rewards",
+      type: "rewards",
+      size: "S",
       col: 0,
-      row: 4,
-      sortOrder: 3,
+      row: 2,
+      sortOrder: 2,
     },
   ];
 }
@@ -779,15 +808,16 @@ export function catalogEntryFor(
 }
 
 /**
- * Keep only Phase 1 widgets, unique by type.
+ * Keep only optional Phase 1 widgets for the side Ordna grid, unique by type.
+ * Strips fixed Tidslinje/Rutiner placements (rendered outside the grid).
  * Assigns snap col/row (migrates legacy layouts without positions).
  */
 export function normalizeIdagLayout(input: unknown): IdagWidgetPlacement[] {
   if (input === undefined || input === null) {
-    return defaultIdagLayout();
+    return defaultOptionalIdagLayout();
   }
   if (!Array.isArray(input)) {
-    return defaultIdagLayout();
+    return defaultOptionalIdagLayout();
   }
   if (input.length === 0) {
     return [];
@@ -801,7 +831,7 @@ export function normalizeIdagLayout(input: unknown): IdagWidgetPlacement[] {
     const record = row as Record<string, unknown>;
     const type = record.type;
     if (!isWidgetType(type)) continue;
-    if (!PHASE1_WIDGET_TYPES.includes(type)) continue;
+    if (!isOptionalIdagWidgetType(type)) continue;
     if (seen.has(type)) continue;
     seen.add(type);
 
@@ -835,7 +865,8 @@ export function normalizeIdagLayout(input: unknown): IdagWidgetPlacement[] {
     });
   }
 
-  if (draft.length === 0) return defaultIdagLayout();
+  // Empty after stripping fixed-only legacy layouts → use Direction A defaults.
+  if (draft.length === 0) return defaultOptionalIdagLayout();
 
   return packIdagLayout(draft);
 }
@@ -896,8 +927,15 @@ export function setIdagLayoutForPerson(
 export function availablePhase1Types(
   layout: IdagWidgetPlacement[],
 ): IdagWidgetType[] {
+  return availableOptionalTypes(layout);
+}
+
+/** Optional side-grid widgets not yet placed. */
+export function availableOptionalTypes(
+  layout: IdagWidgetPlacement[],
+): IdagWidgetType[] {
   const used = new Set(layout.map((p) => p.type));
-  return PHASE1_WIDGET_TYPES.filter((type) => !used.has(type));
+  return OPTIONAL_IDAG_WIDGET_TYPES.filter((type) => !used.has(type));
 }
 
 export function addWidgetToLayout(
@@ -905,6 +943,7 @@ export function addWidgetToLayout(
   type: IdagWidgetType,
   contentUnitsById?: Record<string, number>,
 ): IdagWidgetPlacement[] {
+  if (!isOptionalIdagWidgetType(type)) return layout;
   if (layout.some((p) => p.type === type)) return layout;
   const entry = catalogEntryFor(type);
   const size = clampWidgetSize(type, entry?.defaultSize ?? "M");

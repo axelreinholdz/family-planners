@@ -28,6 +28,14 @@ const PAGE_LABELS: Record<KitchenPageId, string> = {
   todos: "Att göra",
 };
 
+/** Compact labels for the floating page pills. */
+const PAGE_PILL_LABELS: Record<KitchenPageId, string> = {
+  week: "Vecka",
+  idag: "Idag",
+  beloning: "Belöning",
+  todos: "Att göra",
+};
+
 function KitchenApp() {
   const { ready, visibleKitchenPages } = useFamilyStore();
   const [pageIndex, setPageIndex] = useState(0);
@@ -57,7 +65,11 @@ function KitchenApp() {
           content = <TodoView />;
           break;
       }
-      return { id, label: PAGE_LABELS[id], content };
+      return {
+        id,
+        label: PAGE_PILL_LABELS[id],
+        content,
+      };
     });
   }, [visibleKitchenPages]);
 
@@ -98,8 +110,9 @@ function KitchenApp() {
     );
   }
 
+  const activePageId = enabledPages[pageIndex]?.id;
   const activeLabel =
-    enabledPages[pageIndex]?.label ??
+    (activePageId ? PAGE_LABELS[activePageId] : undefined) ??
     KITCHEN_PAGE_OPTIONS[0]?.label ??
     "Veckans Schema";
 

@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ActivityDetailModal } from "@/components/ActivityDetailModal";
 import { ActivityIcon } from "@/components/ActivityIcon";
 import {
@@ -11,7 +17,6 @@ import {
   startOfWeek,
   toDateKey,
   weekDays,
-  weekRangeLabel,
 } from "@/lib/dates";
 import { useFamilyStore } from "@/hooks/useFamilyStore";
 import type { Event, Person } from "@/lib/types";
@@ -31,6 +36,30 @@ function eventsForCell(
       if (!a.allDay && b.allDay) return 1;
       return (a.startTime ?? "").localeCompare(b.startTime ?? "");
     });
+}
+
+function NavPill({
+  children,
+  onClick,
+  active = false,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  active?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`tap-target rounded-full px-4 py-2.5 text-sm font-bold shadow-sm ring-1 transition ${
+        active
+          ? "bg-[var(--accent)] text-white ring-[var(--accent)]"
+          : "bg-white/85 text-[var(--ink)] ring-black/5"
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 function ActivityCellButton({
@@ -70,17 +99,16 @@ function ActivityCellButton({
         pointerOrigin.current = null;
       }}
       onClick={() => {
-        // Keyboard / mouse fallback; skip if pointerup already opened the modal.
         if (openedByPointer.current) {
           openedByPointer.current = false;
           return;
         }
         onSelect(event);
       }}
-      className={`tap-target touch-manipulation flex flex-col items-center justify-center rounded-xl px-1 py-1 text-left ${
-        emphasize ? "min-h-[4.25rem]" : "min-h-[2.75rem]"
+      className={`tap-target touch-manipulation flex w-full flex-col items-center justify-center rounded-[1.25rem] px-1.5 py-2 text-left ${
+        emphasize ? "min-h-[5.5rem] gap-1" : "min-h-[3rem] gap-0.5"
       }`}
-      style={{ backgroundColor: `${person.color}22` }}
+      style={{ backgroundColor: `${person.color}4D` }}
       aria-label={`Visa detaljer för ${event.title}`}
     >
       <ActivityIcon
@@ -96,7 +124,7 @@ function ActivityCellButton({
         </span>
       ) : null}
       {event.startTime ? (
-        <span className="text-[0.6rem] font-medium text-[var(--ink-muted)]">
+        <span className="text-[0.65rem] font-semibold text-[var(--ink-muted)]">
           {event.startTime}
         </span>
       ) : null}
@@ -119,19 +147,25 @@ function PersonRow({
 }) {
   return (
     <div
-      className={`grid min-h-0 grid-cols-[10.5rem_repeat(7,minmax(0,1fr))] gap-1.5 ${
-        emphasize ? "flex-[1.35]" : "flex-1"
+      className={`grid min-h-0 grid-cols-[7.5rem_repeat(7,minmax(0,1fr))] gap-2.5 ${
+        emphasize ? "flex-[1.4]" : "flex-1"
       }`}
     >
-      <div className="flex items-center gap-2 rounded-2xl bg-white/70 px-3 py-2 shadow-sm ring-1 ring-black/5">
+      <div className="flex flex-col items-center justify-center gap-2 rounded-[1.75rem] bg-white/80 px-2 py-3 shadow-sm ring-1 ring-black/5">
         <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-2xl"
+          className={`flex shrink-0 items-center justify-center rounded-full ${
+            emphasize ? "h-14 w-14 text-3xl" : "h-10 w-10 text-xl"
+          }`}
           style={{ backgroundColor: `${person.color}33` }}
           aria-hidden
         >
           {person.avatar}
         </span>
-        <p className="min-w-0 break-words text-sm font-bold leading-snug text-[var(--ink)]">
+        <p
+          className={`min-w-0 text-center font-extrabold leading-snug text-[var(--ink)] ${
+            emphasize ? "text-base" : "text-sm"
+          }`}
+        >
           {person.name}
         </p>
       </div>
@@ -143,14 +177,14 @@ function PersonRow({
         return (
           <div
             key={key}
-            className={`flex min-h-0 flex-col gap-1 overflow-y-auto rounded-2xl p-2 ring-1 ${
+            className={`flex min-h-0 flex-col gap-1.5 overflow-y-auto rounded-[1.5rem] p-2 ring-1 ${
               today
-                ? "bg-white shadow-md ring-[var(--accent)]/40"
+                ? "bg-white shadow-md ring-2 ring-[var(--accent)]/50"
                 : "bg-white/55 ring-black/5"
             }`}
           >
             {cellEvents.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center text-[var(--ink-faint)]">
+              <div className="flex flex-1 items-center justify-center text-lg text-[var(--ink-faint)]">
                 ·
               </div>
             ) : (
@@ -218,47 +252,42 @@ export function WeekView() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <button
-          type="button"
-          className="tap-target rounded-full bg-white/80 px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-black/5"
-          onClick={() => setWeekAnchor((d) => addDays(d, -7))}
+      <div className="flex items-center justify-end gap-2">
+        <NavPill onClick={() => setWeekAnchor((d) => addDays(d, -7))}>
+          ←
+        </NavPill>
+        <NavPill
+          active
+          onClick={() => setWeekAnchor(startOfWeek(new Date()))}
         >
-          ← Förra
-        </button>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className="tap-target rounded-full bg-white/80 px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-black/5"
-            onClick={() => setWeekAnchor(startOfWeek(new Date()))}
-          >
-            Idag
-          </button>
-          <button
-            type="button"
-            className="tap-target rounded-full bg-white/80 px-4 py-2 text-sm font-semibold shadow-sm ring-1 ring-black/5"
-            onClick={() => setWeekAnchor((d) => addDays(d, 7))}
-          >
-            Nästa →
-          </button>
-        </div>
+          Idag
+        </NavPill>
+        <NavPill onClick={() => setWeekAnchor((d) => addDays(d, 7))}>
+          →
+        </NavPill>
       </div>
 
-      <div className="grid grid-cols-[10.5rem_repeat(7,minmax(0,1fr))] gap-1.5">
+      <div className="grid grid-cols-[7.5rem_repeat(7,minmax(0,1fr))] gap-2.5">
         <div />
         {days.map((day) => {
           const today = isSameDay(day, new Date());
           return (
             <div
               key={toDateKey(day)}
-              className={`rounded-xl px-1 py-2 text-center ${
-                today ? "bg-[var(--accent)] text-white" : "bg-white/60"
+              className={`flex flex-col items-center justify-center rounded-2xl px-1 py-2.5 text-center ${
+                today
+                  ? "bg-[var(--accent)] text-white shadow-sm"
+                  : "bg-white/60 text-[var(--ink)]"
               }`}
             >
-              <div className="text-[0.7rem] font-bold uppercase tracking-wider opacity-80">
+              <div
+                className={`text-[0.7rem] font-extrabold uppercase tracking-wider ${
+                  today ? "text-white/85" : "text-[var(--ink-muted)]"
+                }`}
+              >
                 {dayLabel(day)}
               </div>
-              <div className="font-display text-xl font-bold leading-none">
+              <div className="font-display text-2xl font-bold leading-none">
                 {dayNumber(day)}
               </div>
             </div>
@@ -266,7 +295,7 @@ export function WeekView() {
         })}
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-0.5 pb-1">
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto p-0.5 pb-1">
         {children.map((person) => (
           <PersonRow
             key={person.id}
@@ -289,7 +318,9 @@ export function WeekView() {
                 <span
                   className="inline-block text-[var(--ink-muted)] transition-transform duration-200"
                   style={{
-                    transform: parentsExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                    transform: parentsExpanded
+                      ? "rotate(90deg)"
+                      : "rotate(0deg)",
                   }}
                   aria-hidden
                 >
